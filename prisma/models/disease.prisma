@@ -1,0 +1,12 @@
+model Disease{
+    id Int @id @default(autoincrement())
+    name String @unique 
+    type DiseaseType
+    description String?
+    patientConditions PatientCondition[]
+    medicalHistories MedicalHistory[]
+}
+enum DiseaseType{
+     CHRONIC
+        ACUTE
+}

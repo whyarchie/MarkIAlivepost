@@ -1,0 +1,102 @@
+model Patient {
+  id             Int                @id @default(autoincrement())
+  name           String
+  dateOfBirth    DateTime
+  bloodGroup     String
+  gender         Gender
+  mobileNumber   String             @unique
+  medicalHistory MedicalHistory[]
+  conditions     PatientCondition[]
+  patientDevices PatientDevice[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+model PatientDevice{
+  id  Int @id @default(autoincrement())
+  fcmToken String  @unique
+  patientId Int
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model MedicalHistory {
+  id          Int       @id @default(autoincrement())
+  diseaseId   Int
+  disease     Disease   @relation(fields: [diseaseId], references: [id])
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  patientId   Int
+  patient     Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model PatientCondition {
+  id              Int                    @id @default(autoincrement())
+  patientId       Int
+  patient         Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  diseaseId       Int
+  disease         Disease                @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+  status          PatientConditionStatus
+  startDate       DateTime
+  endDate         DateTime?
+  hospitalId      Int
+  hospital        Hospital               @relation(fields: [hospitalId], references: [id])
+  doctorId        Int?
+  doctor          Doctor?                @relation(fields: [doctorId], references: [id])
+  medicineAlloted MedicineAllotted[]
+  patientProgress PatientProgress[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+enum PatientConditionStatus {
+  STABLE
+  CRITICAL
+  RECOVERED
+}
+
+model MedicineAllotted {
+  id                 Int               @id @default(autoincrement())
+  patientConditionId Int
+  patientCondition   PatientCondition  @relation(fields: [patientConditionId], references: [id], onDelete: Cascade)
+  medicineId         Int
+  medicine           Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  quantity           Int               @default(1)
+  tillDate           DateTime
+  timings            MedicineTimings[]
+}
+
+model MedicineTimings {
+  id                 Int              @id @default(autoincrement())
+  medicineAllottedId Int
+  medicineAllotted   MedicineAllotted @relation(fields: [medicineAllottedId], references: [id], onDelete: Cascade)
+  timing             DateTime         @db.Time()
+}
+
+model PatientProgress {
+  id                 Int                @id @default(autoincrement())
+  patientConditionId Int
+  patientCondition   PatientCondition   @relation(fields: [patientConditionId], references: [id], onDelete: Cascade)
+  description        String?
+  jsonField          Json?
+  followUpStatus     FollowUpStatus @default(SCHEDULED)
+  questions         String?
+  answer  String?
+  scheduledDate     DateTime
+  percentageRecovery Int?
+  createdAt          DateTime           @default(now())
+}
+
+enum FollowUpStatus {
+  SUCCESSFUL
+  SCHEDULED
+  NOT_ANSWERING
+  FAILED
+  SUSPEND
+}
+

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alivepost — Notification Tester</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0f0f13;
+            --surface: #1a1a24;
+            --surface-hover: #22222e;
+            --border: #2a2a3a;
+            --accent: #7c5cfc;
+            --accent-glow: rgba(124, 92, 252, .25);
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --text: #e4e4ed;
+            --text-dim: #9090a8;
+            --radius: 14px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #7c5cfc 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: .25rem;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: .85rem;
+            margin-bottom: 2rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* ── Cards ─────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            transition: border-color .2s;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+        }
+
+        .card-title {
+            font-size: .7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--text-dim);
+            margin-bottom: .75rem;
+        }
+
+        /* ── Status Chip ──────────────────────── */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .3rem .7rem;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 500;
+            border: 1px solid;
+        }
+
+        .chip.success {
+            background: rgba(34, 197, 94, .1);
+            border-color: rgba(34, 197, 94, .3);
+            color: var(--success);
+        }
+
+        .chip.error {
+            background: rgba(239, 68, 68, .1);
+            border-color: rgba(239, 68, 68, .3);
+            color: var(--error);
+        }
+
+        .chip.warn {
+            background: rgba(245, 158, 11, .1);
+            border-color: rgba(245, 158, 11, .3);
+            color: var(--warning);
+        }
+
+        .chip.info {
+            background: rgba(124, 92, 252, .1);
+            border-color: rgba(124, 92, 252, .3);
+            color: var(--accent);
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .success .dot {
+            background: var(--success);
+        }
+
+        .error .dot {
+            background: var(--error);
+        }
+
+        .warn .dot {
+            background: var(--warning);
+        }
+
+        .info .dot {
+            background: var(--accent);
+        }
+
+        /* ── Inputs ───────────────────────────── */
+        label {
+            display: block;
+            font-size: .75rem;
+            font-weight: 500;
+            color: var(--text-dim);
+            margin-bottom: .3rem;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: .6rem .8rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+            font-size: .85rem;
+            outline: none;
+            transition: border-color .2s;
+            margin-bottom: .75rem;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* ── Buttons ──────────────────────────── */
+        .btn {
+            width: 100%;
+            padding: .65rem;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: .85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .1s, box-shadow .2s;
+        }
+
+        .btn:active {
+            transform: scale(.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c5cfc, #9b7cfc);
+            color: #fff;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 4px 30px rgba(124, 92, 252, .4);
+        }
+
+        .btn-secondary {
+            background: var(--surface-hover);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+        }
+
+        .btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        /* ── Token Display ────────────────────── */
+        .token-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: .6rem .8rem;
+            font-family: 'Courier New', monospace;
+            font-size: .7rem;
+            color: var(--text-dim);
+            word-break: break-all;
+            max-height: 80px;
+            overflow-y: auto;
+            margin-top: .5rem;
+        }
+
+        /* ── Log ──────────────────────────────── */
+        #log {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: .75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: .75rem;
+            line-height: 1.7;
+        }
+
+        .log-entry {
+            padding: .25rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: .5rem;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        .log-msg {
+            color: var(--text);
+        }
+
+        .log-msg.err {
+            color: var(--error);
+        }
+
+        .log-msg.ok {
+            color: var(--success);
+        }
+
+        /* ── Notification Toast ───────────────── */
+        .toast-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            z-index: 9999;
+        }
+
+        .toast {
+            background: var(--surface);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: .75rem 1rem;
+            min-width: 280px;
+            animation: slideIn .3s ease-out, fadeOut .4s ease-in 4.6s forwards;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .4);
+        }
+
+        .toast-title {
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .toast-body {
+            font-size: .75rem;
+            color: var(--text-dim);
+            margin-top: .2rem;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+        }
+
+        .row {
+            display: flex;
+            gap: .75rem;
+        }
+
+        .row>* {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🔔 Notification Tester</h1>
+    <p class="subtitle">Alivepost Push Notification Testing Console</p>
+
+    <div class="container">
+
+        <!-- ── Step 1: Status ──────────────────── -->
+        <div class="card">
+            <div class="card-title">① System Status</div>
+            <div class="status-row">
+                <span id="swStatus" class="chip warn"><span class="dot"></span> Service Worker</span>
+                <span id="permStatus" class="chip warn"><span class="dot"></span> Permission</span>
+                <span id="tokenStatus" class="chip warn"><span class="dot"></span> FCM Token</span>
+                <span id="loginStatus" class="chip warn"><span class="dot"></span> Logged In</span>
+            </div>
+        </div>
+
+        <!-- ── Step 2: Patient Login ───────────── -->
+        <div class="card">
+            <div class="card-title">② Patient Login</div>
+            <label for="mobile">Mobile Number</label>
+            <input id="mobile" type="text" placeholder="e.g. 919876543210" />
+            <label for="dob">Date of Birth</label>
+            <input id="dob" type="text" placeholder="e.g. 1990-01-01T00:00:00.000Z" />
+            <button class="btn btn-secondary" id="loginBtn" onclick="loginPatient()">Login as Patient</button>
+        </div>
+
+        <!-- ── Step 3: FCM Setup ──────────────── -->
+        <div class="card">
+            <div class="card-title">③ Enable Push Notifications</div>
+            <p style="font-size:.78rem;color:var(--text-dim);margin-bottom:.75rem">
+                Requests notification permission, registers the service worker, and retrieves the FCM token.
+            </p>
+            <button class="btn btn-primary" id="enableBtn" onclick="enableNotifications()">
+                🔔 Enable & Get FCM Token
+            </button>
+            <div id="tokenDisplay" class="token-box" style="display:none"></div>
+        </div>
+
+        <!-- ── Step 4: Save Token ─────────────── -->
+        <div class="card">
+            <div class="card-title">④ Save Token to Server</div>
+            <button class="btn btn-secondary" id="saveBtn" onclick="saveFcmToken()" disabled>
+                Save FCM Token → /api/v1/patient/fcm
+            </button>
+        </div>
+
+        <!-- ── Step 5: Send Test (manual cURL) ── -->
+        <div class="card">
+            <div class="card-title">⑤ Send Test Notification (via API)</div>
+            <p style="font-size:.78rem;color:var(--text-dim);margin-bottom:.75rem">
+                Use the generated cURL below to send a test notification from your terminal, or wait for the cron job to
+                trigger.
+            </p>
+            <div id="curlBox" class="token-box" style="display:none"></div>
+        </div>
+
+        <!-- ── Event Log ──────────────────────── -->
+        <div class="card">
+            <div class="card-title">Event Log</div>
+            <div id="log">
+                <div class="log-entry">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-msg">Waiting for actions…</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast-container" id="toasts"></div>
+
+    <!-- Firebase SDK (compat for simpler usage) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+
+    <script>
+        // ═══════════════════════════════════════════
+        // ⚠️  FILL IN YOUR FIREBASE WEB CONFIG HERE
+        // ═══════════════════════════════════════════
+        const FIREBASE_CONFIG = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "alivepost.firebaseapp.com",
+            projectId: "alivepost",
+            storageBucket: "alivepost.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID",
+        };
+
+        // VAPID key from Firebase Console → Cloud Messaging → Web Push certificates
+        const VAPID_KEY = "YOUR_VAPID_KEY";
+
+        // Backend base URL
+        const API = "http://localhost:3000";
+
+        // ───────────────────────────────────────────
+        // State
+        // ───────────────────────────────────────────
+        let fcmToken = null;
+        let authCookie = null; // we rely on cookie-based auth
+        let messaging = null;
+
+        // ───────────────────────────────────────────
+        // Helpers
+        // ───────────────────────────────────────────
+        function log(msg, type = "") {
+            const el = document.getElementById("log");
+            const now = new Date().toLocaleTimeString();
+            const div = document.createElement("div");
+            div.className = "log-entry";
+            div.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type}">${msg}</span>`;
+            el.prepend(div);
+        }
+
+        function setChip(id, cls, text) {
+            const el = document.getElementById(id);
+            el.className = `chip ${cls}`;
+            el.innerHTML = `<span class="dot"></span> ${text}`;
+        }
+
+        function showToast(title, body) {
+            const container = document.getElementById("toasts");
+            const div = document.createElement("div");
+            div.className = "toast";
+            div.innerHTML = `<div class="toast-title">${title}</div><div class="toast-body">${body}</div>`;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        // ───────────────────────────────────────────
+        // Step 2 — Patient Login
+        // ───────────────────────────────────────────
+        async function loginPatient() {
+            const mobile = document.getElementById("mobile").value.trim();
+            const dob = document.getElementById("dob").value.trim();
+            if (!mobile || !dob) {
+                log("⚠️ Please fill in mobile & date of birth", "err");
+                return;
+            }
+
+            log("🔄 Logging in…");
+            try {
+                const res = await fetch(`${API}/api/v1/patient/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ mobileNumber: mobile, dateOfBirth: dob }),
+                });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.message || res.statusText);
+
+                log(`✅ Logged in as ${json.data.name} (ID: ${json.data.id})`, "ok");
+                setChip("loginStatus", "success", `Logged in #${json.data.id}`);
+                document.getElementById("saveBtn").disabled = false;
+            } catch (err) {
+                log(`❌ Login failed: ${err.message}`, "err");
+                setChip("loginStatus", "error", "Failed");
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // Step 3 — Enable Notifications + FCM Token
+        // ───────────────────────────────────────────
+        async function enableNotifications() {
+            try {
+                // 1. Register service worker
+                log("🔄 Registering service worker…");
+                const sw = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+                log("✅ Service worker registered", "ok");
+                setChip("swStatus", "success", "SW Active");
+
+                // 2. Request permission
+                log("🔄 Requesting notification permission…");
+                const perm = await Notification.requestPermission();
+                if (perm !== "granted") {
+                    log("❌ Notification permission denied", "err");
+                    setChip("permStatus", "error", "Denied");
+                    return;
+                }
+                log("✅ Notification permission granted", "ok");
+                setChip("permStatus", "success", "Granted");
+
+                // 3. Init Firebase & get token
+                firebase.initializeApp(FIREBASE_CONFIG);
+                messaging = firebase.messaging();
+
+                log("🔄 Fetching FCM token…");
+                fcmToken = await messaging.getToken({
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: sw,
+                });
+
+                if (!fcmToken) {
+                    log("❌ Failed to get FCM token", "err");
+                    setChip("tokenStatus", "error", "Failed");
+                    return;
+                }
+
+                log("✅ FCM token obtained", "ok");
+                setChip("tokenStatus", "success", "Token Ready");
+
+                const display = document.getElementById("tokenDisplay");
+                display.style.display = "block";
+                display.textContent = fcmToken;
+
+                document.getElementById("saveBtn").disabled = false;
+
+                // Show cURL helper
+                const curlBox = document.getElementById("curlBox");
+                curlBox.style.display = "block";
+                curlBox.textContent =
+                    `curl -X POST ${API}/api/v1/patient/fcm \\
+  -H "Content-Type: application/json" \\
+  -H "Cookie: token=YOUR_JWT_TOKEN" \\
+  -d '{"fcm": "${fcmToken}"}'`;
+
+                // 4. Listen for foreground messages
+                messaging.onMessage((payload) => {
+                    console.log("Foreground message:", payload);
+                    const title = payload.notification?.title || "Notification";
+                    const body = payload.notification?.body || "";
+                    log(`🔔 ${title}: ${body}`, "ok");
+                    showToast(title, body);
+                });
+
+                log("👂 Listening for foreground messages…", "ok");
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, "err");
+                console.error(err);
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // Step 4 — Save Token to Backend
+        // ───────────────────────────────────────────
+        async function saveFcmToken() {
+            if (!fcmToken) {
+                log("⚠️ No FCM token — enable notifications first", "err");
+                return;
+            }
+
+            log("🔄 Saving FCM token to server…");
+            try {
+                const res = await fetch(`${API}/api/v1/patient/fcm`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ fcm: fcmToken }),
+                });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.message || res.statusText);
+
+                log(`✅ Token saved! Device ID: ${json.data.id}`, "ok");
+                showToast("Token Saved", "Your device is now registered for push notifications.");
+            } catch (err) {
+                log(`❌ Save failed: ${err.message}`, "err");
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // Init
+        // ───────────────────────────────────────────
+        log("📱 Notification Tester loaded. Follow steps 1→4.");
+
+        if (!("serviceWorker" in navigator)) {
+            log("❌ Service Workers not supported in this browser", "err");
+            setChip("swStatus", "error", "Unsupported");
+        }
+        if (!("Notification" in window)) {
+            log("❌ Notifications not supported in this browser", "err");
+            setChip("permStatus", "error", "Unsupported");
+        }
+    </script>
+</body>
+
+</html>

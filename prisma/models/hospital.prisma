@@ -1,0 +1,23 @@
+model Hospital {
+    id             Int      @id @default(autoincrement())
+    name           String
+    helplineNumber String   @unique
+    address        String
+    userId         String   @unique
+    password       String
+    doctor         Doctor[]
+    patientCondition    PatientCondition[]
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+}
+
+model Doctor {
+    id         Int      @id @default(autoincrement())
+    name       String
+    username    String @unique
+    hospitalId Int
+    hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade )
+    patientConditions PatientCondition[]
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}

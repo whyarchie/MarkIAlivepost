@@ -1,0 +1,22 @@
+model Medicine{
+    id Int @id @default(autoincrement())
+    brandName String
+    genericName String
+    dosageForm DosageForm
+    dosageStrength String?
+    manufacturer String
+    medicineAllotteds MedicineAllotted[]
+    @@unique([brandName, genericName,manufacturer, dosageStrength, dosageForm])
+}
+enum DosageForm {
+  TABLET
+  CAPSULE
+  SYRUP
+  INJECTION
+  OINTMENT
+  DROPS
+  CREAM
+  GEL
+  INHALER
+  POWDER
+}

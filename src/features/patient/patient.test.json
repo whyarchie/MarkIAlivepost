@@ -1,0 +1,129 @@
+{
+    "_info": "Test payloads for all Patient API endpoints. Copy-paste into Swagger UI or import into Postman.",
+    "POST /api/v1/patient/create": {
+        "description": "Create a new patient (no auth required)",
+        "requestBody": {
+            "name": "John Doe",
+            "dateOfBirth": "1990-01-01T00:00:00.000Z",
+            "bloodGroup": "O+",
+            "gender": "MALE",
+            "mobileNumber": "919876543210"
+        },
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/login": {
+        "description": "Login with mobile + DOB, sets token cookie",
+        "requestBody": {
+            "mobileNumber": "919876543210",
+            "dateOfBirth": "1990-01-01T00:00:00.000Z"
+        },
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/loginmedicine": {
+        "description": "Login and get assigned medicines in one call",
+        "requestBody": {
+            "mobileNumber": "919876543210",
+            "dateOfBirth": "1990-01-01T00:00:00.000Z"
+        },
+        "expectedStatus": 200
+    },
+    "DELETE /api/v1/patient/delete": {
+        "description": "Delete own patient account (requires Patient auth cookie)",
+        "auth": "cookieAuth (Patient role)",
+        "requestBody": null,
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/medicalhistorycreate": {
+        "description": "Add a medical history entry for a patient",
+        "requestBody": {
+            "diseaseId": 1,
+            "patientId": 1,
+            "description": "Patient experienced severe headaches lasting 2 weeks",
+            "startDate": "2023-01-01T00:00:00.000Z"
+        },
+        "optionalFields": {
+            "endDate": "2023-01-15T00:00:00.000Z"
+        },
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/condition": {
+        "description": "Create a patient condition (requires auth cookie)",
+        "auth": "cookieAuth (Hospital/Doctor/Patient)",
+        "requestBody": {
+            "patientId": 1,
+            "diseaseId": 1,
+            "hospitalId": 1,
+            "status": "STABLE",
+            "startDate": "2023-01-01T00:00:00.000Z"
+        },
+        "optionalFields": {
+            "doctorId": 1,
+            "endDate": "2023-06-01T00:00:00.000Z"
+        },
+        "expectedStatus": 201,
+        "notes": "status must be one of: STABLE, CRITICAL, RECOVERED"
+    },
+    "GET /api/v1/patient/condition/?id=1": {
+        "description": "Get patient condition by condition ID",
+        "auth": "cookieAuth (scoped to role — Patient/Hospital/Doctor)",
+        "queryParams": {
+            "id": 1
+        },
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/condition/medicine": {
+        "description": "Assign medicines to a condition (Hospital only)",
+        "auth": "cookieAuth (Hospital role)",
+        "requestBody": {
+            "patientConditionId": 1,
+            "medicines": [
+                {
+                    "medicineId": 1,
+                    "quantity": 2,
+                    "tillDate": "2024-12-31T00:00:00.000Z",
+                    "timings": [
+                        "08:00",
+                        "20:00"
+                    ]
+                },
+                {
+                    "medicineId": 2,
+                    "quantity": 1,
+                    "tillDate": "2024-12-31T00:00:00.000Z",
+                    "timings": [
+                        "09:00"
+                    ]
+                }
+            ]
+        },
+        "expectedStatus": 200,
+        "notes": "timings must be HH:mm format, min 1 max 10 per medicine, min 1 max 20 medicines"
+    },
+    "GET /api/v1/patient/condition/assignedmedicine": {
+        "description": "Get all medicines assigned to the logged-in patient",
+        "auth": "cookieAuth (Patient role)",
+        "queryParams": null,
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/condition/createprogress": {
+        "description": "Create a progress check-in schedule (Hospital only)",
+        "auth": "cookieAuth (Hospital role)",
+        "requestBody": {
+            "patientConditionId": 1,
+            "frequency": 7,
+            "totalOccurrences": 4,
+            "questions": "How are you feeling? Any pain? Rate severity 1-10.",
+            "startDate": "2024-01-01T00:00:00.000Z"
+        },
+        "expectedStatus": 201,
+        "notes": "Creates totalOccurrences entries spaced frequency days apart starting from startDate"
+    },
+    "GET /api/v1/patient/condition/progress?id=1": {
+        "description": "Get progress entries for a condition (Hospital only)",
+        "auth": "cookieAuth (Hospital role)",
+        "queryParams": {
+            "id": 1
+        },
+        "expectedStatus": 200
+    }
+}
