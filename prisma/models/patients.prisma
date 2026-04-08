@@ -85,8 +85,8 @@ model PatientProgress {
   description        String?
   jsonField          Json?
   followUpStatus     FollowUpStatus @default(SCHEDULED)
-  questions         String?
-  answer  String?
+  questions         Json?
+  answer  Json?
   scheduledDate     DateTime
   percentageRecovery Int?
   createdAt          DateTime           @default(now())

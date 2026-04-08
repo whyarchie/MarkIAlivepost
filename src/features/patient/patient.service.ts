@@ -1,6 +1,7 @@
 import prisma from "../../config/prisma";
 import type {
   AssignMedicineInput,
+  CreateprogressInput,
   MedicalHistoryCreate,
   PatientConditionInput,
   PatientInput,
@@ -281,14 +282,7 @@ export async function GetAssignedMedicineForPatient(id: number) {
   return result
 }
 
-export async function CreatePatientProgress(data: {
-  hospitalId: number;
-  patientConditionId: number,
-  frequency: number, // gap in days
-  totalOccurrences: number,
-  questions: string,
-  startDate: string
-}) {
+export async function CreatePatientProgress(data: CreateprogressInput & { hospitalId: number }) {
   const patientCondition = await prisma.patientCondition.findFirst({
     where: {
       id: data.patientConditionId,
@@ -308,7 +302,7 @@ export async function CreatePatientProgress(data: {
     safeData.push({
       patientConditionId: data.patientConditionId,
       scheduledDate: date,
-      questions: data.questions,
+      questions: JSON.stringify(data.questions),
     })
   }
 

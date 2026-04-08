@@ -85,7 +85,27 @@ export const medicalHistorySchema = z
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
     path: ["endDate"],
   });
-
+  const optionSchema = z.object({
+  text: z.string().optional(),
+  image: z.string().optional(),
+}).refine(
+  (val) => val.text || val.image,
+  { message: "Option must have at least text or image" }
+);
+export const questionSchema = z.object({
+  question: z.string(),
+  image: z.string().optional(),
+  isText: z.boolean(),
+  options: z.array(optionSchema).optional(),
+}).refine(
+  (data) => {
+    if (data.isText) return !data.options;
+    return data.options && data.options.length > 0;
+  },
+  {
+    message: "Text questions shouldn't have options, non-text must have options",
+  }
+);
 //PatientConditionSchema
 export const PatientConditionSchema = z
   .object({
@@ -119,6 +139,8 @@ export const PatientConditionSchema = z
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
     path: ["endDate"],
   });
+export const questionsArraySchema = z.array(questionSchema);
+
 
 export const AssignMedicineSchema = z.object({
   patientConditionId: z.number().int().positive(),
@@ -164,16 +186,14 @@ export const CreateprogressSchema = z.object({
     })
     .min(1, COMMON_ERROR.INVALID_NUMBER),
 
-  questions: z
-    .string({
-      message: COMMON_ERROR.INVALID_STRING,
-    })
-    .min(1, COMMON_ERROR.EMPTY_STRING),
-
+  questions: questionsArraySchema,
   startDate: z.string({
     message: COMMON_ERROR.STARTDATE_REQUIRE
   }),
 })
+
+
+
 export type PatientLoginInput = z.infer<typeof patientLoginSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type MedicalHistoryCreate = z.infer<typeof medicalHistorySchema>;

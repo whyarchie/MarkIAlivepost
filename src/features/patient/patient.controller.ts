@@ -299,7 +299,7 @@ patientRouter.post('/loginmedicine', async (req, res, next) => {
 
     const result = await LoginPatient(safeData);
     const medicine = await GetAssignedMedicineForPatient(result.patient.id)
-    res.status(200).json({
+    res.status(200).cookie("token", result.token).json({
       success: true,
       data: medicine
     })
@@ -804,9 +804,30 @@ patientRouter.get('/condition/assignedmedicine', AuthUser, async (req, res, next
  *                 minimum: 1
  *                 description: Total number of scheduled progress entries
  *               questions:
- *                 type: string
- *                 minLength: 1
+ *                 type: array
+ *                 minItems: 1
  *                 description: Questions to ask the patient
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - question
+ *                     - isText
+ *                   properties:
+ *                     question:
+ *                       type: string
+ *                     image:
+ *                       type: string
+ *                     isText:
+ *                       type: boolean
+ *                     options:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           text:
+ *                             type: string
+ *                           image:
+ *                             type: string
  *               startDate:
  *                 type: string
  *                 format: date-time
@@ -815,7 +836,15 @@ patientRouter.get('/condition/assignedmedicine', AuthUser, async (req, res, next
  *               patientConditionId: 1
  *               frequency: 7
  *               totalOccurrences: 4
- *               questions: "How are you feeling? Any pain? Rate severity 1-10."
+ *               questions:
+ *                 - question: "How are you feeling?"
+ *                   isText: true
+ *                 - question: "Rate your pain from these options"
+ *                   isText: false
+ *                   options:
+ *                     - text: "1"
+ *                     - text: "5"
+ *                     - text: "10"
  *               startDate: "2024-01-01T00:00:00.000Z"
  *     responses:
  *       201:

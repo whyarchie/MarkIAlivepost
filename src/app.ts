@@ -14,6 +14,7 @@ const allowedOrigins = [
   "https://api.alivepost.com",
   "http://api.alivepost.com",
   "http://localhost:3000",
+  "http://localhost:3001",
 ]
 
 app.use(cors({
@@ -37,23 +38,23 @@ setupSwagger(app);
 
 app.use('/api/v1/', mainRouter)
 app.get('/health', (req, res) => {
-    res.status(200).json({
-        msg: "Yes baby! server is up and running"
-    })
+  res.status(200).json({
+    msg: "Yes baby! server is up and running"
+  })
 })
 app.use(globalErrorHandler)
 
 const server = app.listen(PORT, () => {
-    console.log(`[ READY ] Server is running at http://localhost:${PORT}`);
+  console.log(`[ READY ] Server is running at http://localhost:${PORT}`);
 });
 
 server.on('error', (error: any) => {
-    if (error.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use. Please kill existing processes running on this port.`);
-        process.exit(1);
-    } else {
-        console.error('Server error:', error);
-    }
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please kill existing processes running on this port.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', error);
+  }
 });
 
 process.on('exit', (code) => console.log('Exited with code', code));

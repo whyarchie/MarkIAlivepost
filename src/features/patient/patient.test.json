@@ -112,7 +112,12 @@
             "patientConditionId": 1,
             "frequency": 7,
             "totalOccurrences": 4,
-            "questions": "How are you feeling? Any pain? Rate severity 1-10.",
+            "questions": [
+                {
+                    "question": "How are you feeling? Any pain? Rate severity 1-10.",
+                    "isText": true
+                }
+            ],
             "startDate": "2024-01-01T00:00:00.000Z"
         },
         "expectedStatus": 201,
