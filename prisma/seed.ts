@@ -317,59 +317,136 @@ async function main() {
     console.log('✅ Seeded medicine timings');
 
     // ── 10. Patient Progress ─────────────────────────────────────────
-    await prisma.patientProgress.createMany({
-        data: [
-            {
-                patientConditionId: conditions[0].id,
-                description: 'Blood sugar levels stabilising with medication',
-                followUpStatus: 'SUCCESSFUL',
-                scheduledDate: new Date('2024-02-15'),
-                percentageRecovery: 40,
-                questions: 'Are you following the prescribed diet?',
-                answer: 'Yes, mostly following the low-sugar diet.',
-            },
-            {
-                patientConditionId: conditions[0].id,
-                description: 'HbA1c improved from 9.2 to 7.5',
-                followUpStatus: 'SUCCESSFUL',
-                scheduledDate: new Date('2024-04-15'),
-                percentageRecovery: 60,
-                questions: 'Any episodes of hypoglycemia?',
-                answer: 'One mild episode last week.',
-            },
-            {
-                patientConditionId: conditions[1].id,
-                description: 'Inhaler usage reduced, fewer wheezing episodes',
-                followUpStatus: 'SUCCESSFUL',
-                scheduledDate: new Date('2024-03-10'),
-                percentageRecovery: 55,
-            },
-            {
-                patientConditionId: conditions[2].id,
-                description: 'Patient admitted, oxygen saturation low',
-                followUpStatus: 'SCHEDULED',
-                scheduledDate: new Date('2024-03-15'),
-                percentageRecovery: 10,
-            },
-            {
-                patientConditionId: conditions[2].id,
-                description: 'Responding to antibiotics, vitals improving',
-                followUpStatus: 'SUCCESSFUL',
-                scheduledDate: new Date('2024-03-22'),
-                percentageRecovery: 35,
-                questions: 'How is your breathing now?',
-                answer: 'Much better, no chest pain.',
-            },
-            {
-                patientConditionId: conditions[3].id,
-                description: 'Dengue fever fully resolved, platelet count normal',
-                followUpStatus: 'SUCCESSFUL',
-                scheduledDate: new Date('2024-02-15'),
-                percentageRecovery: 100,
-            },
-        ],
-    });
-
+ await prisma.patientProgress.createMany({
+    data: [
+        {
+            patientConditionId: conditions[0].id,
+            description: 'Blood sugar levels stabilising with medication',
+            followUpStatus: 'SUCCESSFUL',
+            scheduledDate: new Date('2024-02-15'),
+            percentageRecovery: 40,
+            questions: [
+                {
+                    question: 'Are you following the prescribed diet?',
+                    isText: true,
+                    // isText=true → no options field at all
+                },
+                {
+                    question: 'How often do you check your blood sugar?',
+                    isText: false,  // MCQ → options required
+                    options: [
+                        { text: 'Once a day' },
+                        { text: 'Twice a day' },
+                        { text: 'Only when I feel unwell' },
+                        { text: 'I don\'t check' },
+                    ],
+                },
+            ],
+        },
+        {
+            patientConditionId: conditions[0].id,
+            description: 'HbA1c improved from 9.2 to 7.5',
+            followUpStatus: 'SUCCESSFUL',
+            scheduledDate: new Date('2024-04-15'),
+            percentageRecovery: 60,
+            questions: [
+                {
+                    question: 'Any episodes of hypoglycemia?',
+                    isText: true,
+                    // isText=true → no options
+                },
+                {
+                    question: 'Rate your energy levels this week',
+                    isText: false,
+                    options: [
+                        { text: 'Very low' },
+                        { text: 'Low' },
+                        { text: 'Normal' },
+                        { text: 'High' },
+                    ],
+                },
+            ],
+        },
+        {
+            patientConditionId: conditions[1].id,
+            description: 'Inhaler usage reduced, fewer wheezing episodes',
+            followUpStatus: 'SUCCESSFUL',
+            scheduledDate: new Date('2024-03-10'),
+            percentageRecovery: 55,
+            questions: [
+                {
+                    question: 'How many times did you use your rescue inhaler this week?',
+                    isText: false,
+                    options: [
+                        { text: '0 times' },
+                        { text: '1–2 times' },
+                        { text: '3–5 times' },
+                        { text: 'More than 5 times' },
+                    ],
+                },
+                {
+                    question: 'Describe any triggers you noticed',
+                    isText: true,
+                    // isText=true → no options
+                },
+            ],
+        },
+        {
+            patientConditionId: conditions[2].id,
+            description: 'Patient admitted, oxygen saturation low',
+            followUpStatus: 'SCHEDULED',
+            scheduledDate: new Date('2024-03-15'),
+            percentageRecovery: 10,
+            // no questions → questions field is optional in schema, this is valid
+        },
+        {
+            patientConditionId: conditions[2].id,
+            description: 'Responding to antibiotics, vitals improving',
+            followUpStatus: 'SUCCESSFUL',
+            scheduledDate: new Date('2024-03-22'),
+            percentageRecovery: 35,
+            questions: [
+                {
+                    question: 'How is your breathing now?',
+                    isText: true,
+                },
+                {
+                    question: 'Current oxygen saturation level',
+                    isText: false,
+                    options: [
+                        { text: 'Below 90%' },
+                        { text: '90–94%' },
+                        { text: '95–99%' },
+                        { text: '100%' },
+                    ],
+                },
+            ],
+        },
+        {
+            patientConditionId: conditions[3].id,
+            description: 'Dengue fever fully resolved, platelet count normal',
+            followUpStatus: 'SUCCESSFUL',
+            scheduledDate: new Date('2024-02-15'),
+            percentageRecovery: 100,
+            questions: [
+                {
+                    question: 'Are you experiencing any fatigue post-recovery?',
+                    isText: false,
+                    options: [
+                        { text: 'No fatigue at all' },
+                        { text: 'Mild fatigue' },
+                        { text: 'Moderate fatigue' },
+                        { text: 'Severe fatigue' },
+                    ],
+                },
+                {
+                    question: 'Any other symptoms you want to report?',
+                    isText: true,
+                },
+            ],
+        },
+    ],
+});
     console.log('✅ Seeded patient progress records');
 
     console.log('\n🎉 Database seeding complete!');
