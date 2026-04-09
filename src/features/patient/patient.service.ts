@@ -302,7 +302,7 @@ export async function CreatePatientProgress(data: CreateprogressInput & { hospit
     safeData.push({
       patientConditionId: data.patientConditionId,
       scheduledDate: date,
-      questions: JSON.stringify(data.questions),
+      questions: data.questions,
     })
   }
 
