@@ -1069,7 +1069,8 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
   try {
     const data = req.body
     const user = req.user!
-    if (user?.role == 'Patient') {
+    console.log(user)
+    if (user?.role !== 'Patient') {
       throw new AppError(COMMON_ERROR.INVALID_ROLE)
     }
     const device = await SavePatientFcmToken({ patientId: user.id, fcmToken: data.fcm })
