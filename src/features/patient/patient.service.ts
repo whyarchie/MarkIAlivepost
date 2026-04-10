@@ -346,3 +346,30 @@ export async function SavePatientFcmToken({ patientId, fcmToken }: { patientId: 
   })
   return data
 }
+
+export async function GetQuestionForToday(userid: number) {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const pending = await prisma.patientProgress.findMany({
+      where: {
+        patientCondition: {
+          patientId: userid,
+        },
+        scheduledDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    return pending;
+  } catch (error) {
+    console.error("GetQuestionForToday failed:", error);
+    throw error; // let the caller handle it
+  }
+}

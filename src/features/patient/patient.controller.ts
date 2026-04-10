@@ -19,6 +19,7 @@ import {
   GetAssignedMedicineForPatient,
   GetPatientForHostpital,
   GetPatientProgressForPatient,
+  GetQuestionForToday,
   LoginPatient,
   MedicalHistoryCreateService,
   PatientConditionCreate,
@@ -1016,6 +1017,22 @@ patientRouter.get('/condition/patientquestions', AuthUser, async (req, res, next
       data: result
     })
   } catch (error) {
+    next(error)
+  }
+})
+
+patientRouter.get('/condition/patientquestiontoday' , AuthUser , async (req , res ,next)=>{
+  try{
+    const user = req.user
+    if(user?.role!=='Patient'){
+      throw new AppError(COMMON_ERROR.INVALID_ROLE , 403)
+    }
+    const questions:any = await GetQuestionForToday(user.id)
+    res.status(200).json({
+      success: true,
+      data: questions
+    })
+  }catch(error){
     next(error)
   }
 })
