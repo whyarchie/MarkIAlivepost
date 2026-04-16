@@ -130,5 +130,40 @@
             "id": 1
         },
         "expectedStatus": 200
+    },
+    "GET /api/v1/patient/search?mobile=919876543210": {
+        "description": "Search patient by mobile number (Hospital only)",
+        "auth": "cookieAuth (Hospital role)",
+        "queryParams": {
+            "mobile": "919876543210"
+        },
+        "expectedStatus": 200
+    },
+    "GET /api/v1/patient/condition/patientquestions": {
+        "description": "Get scheduled progress entries for the logged-in patient",
+        "auth": "cookieAuth (Patient role)",
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/condition/patientanswer": {
+        "description": "Submit answers for a progress check-in (Patient only)",
+        "auth": "cookieAuth (Patient role)",
+        "requestBody": {
+            "patientProgress": 1,
+            "answers": [
+                {
+                    "question": "How are you feeling?",
+                    "answer": "Doing better, pain is reduced."
+                }
+            ]
+        },
+        "expectedStatus": 200
+    },
+    "POST /api/v1/patient/fcm": {
+        "description": "Save FCM token for push notifications (Patient only)",
+        "auth": "cookieAuth (Patient role)",
+        "requestBody": {
+            "fcm": "sample_fcm_token_123456789"
+        },
+        "expectedStatus": 201
     }
 }

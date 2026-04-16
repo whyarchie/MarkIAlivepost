@@ -378,26 +378,26 @@ export async function GetQuestionForToday(userid: number) {
 type SavePatientAnswerInput = {
   patientProgress: number;
   patientId: number;
-  answer: string;
+  answer: Array<{ question: string, answer: string }>;
 };
-export async function SavePatientAnswer({patientProgress, patientId , answer}:SavePatientAnswerInput){
+export async function SavePatientAnswer({ patientProgress, patientId, answer }: SavePatientAnswerInput) {
   try {
     const verify = await prisma.patientProgress.findUnique({
-      where:{
+      where: {
         id: patientProgress,
-        patientCondition:{
-          patientId:patientId
+        patientCondition: {
+          patientId: patientId
         }
       }
     })
-    if(!verify){
+    if (!verify) {
       throw new AppError("Data mismatch!!", 403)
     }
     const data = await prisma.patientProgress.update({
-      where:{
+      where: {
         id: patientProgress
       },
-      data:{
+      data: {
         answer: answer
       }
     })

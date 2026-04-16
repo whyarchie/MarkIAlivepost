@@ -85,7 +85,7 @@ export const medicalHistorySchema = z
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
     path: ["endDate"],
   });
-  const optionSchema = z.object({
+const optionSchema = z.object({
   text: z.string().optional(),
   image: z.string().optional(),
 }).refine(
@@ -196,19 +196,10 @@ export const PatientAnswer = z.object({
     message: COMMON_ERROR.INVALID_NUMBER,
   }),
   answers: z.array(
-    z.union([
-      z.object({
-        question: z.string(),
-        isText: z.literal(true),
-        answer: z.string().min(1),
-      }),
-      z.object({
-        question: z.string(),
-        isText: z.literal(false),
-        options: z.array(optionSchema).min(1),
-        answer: z.union([z.string(), z.number()]),
-      }),
-    ])
+    z.object({
+      question: z.string(),
+      answer: z.string().min(1),
+    })
   ).min(1),
 });
 

@@ -1021,17 +1021,70 @@ patientRouter.get('/condition/patientquestions', AuthUser, async (req, res, next
     next(error)
   }
 })
+/**
+ * @swagger
+ * /api/v1/patient/condition/patientanswer:
+ *   post:
+ *     summary: Submit patient answers for a progress check-in
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - patientProgress
+ *               - answers
+ *             properties:
+ *               patientProgress:
+ *                 type: integer
+ *                 description: ID of the patient progress entry
+ *               answers:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - question
+ *                     - answer
+ *                   properties:
+ *                     question:
+ *                       type: string
+ *                     answer:
+ *                       type: string
+ *             example:
+ *               patientProgress: 1
+ *               answers:
+ *                 - question: "How are you feeling?"
+ *                   answer: "I am feeling better today"
+ *     responses:
+ *       200:
+ *         description: Answers saved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       403:
+ *         description: Invalid role — only patients can submit answers
+ */
 patientRouter.post('/condition/patientanswer', AuthUser, async (req, res, next) => {
   try {
     const user = req.user
     if (user?.role !== 'Patient') {
       throw new AppError(COMMON_ERROR.INVALID_ROLE)
     }
-    const data:{patientProgress:number, answer: []} = req.body;
+    const data: { patientProgress: number, answer: Array<{ question: string, answer: string }> } = req.body;
     const safeData = PatientAnswer.parse(data)
     const patientProgress = safeData.patientProgress;
     const answer = safeData.answers
-    const result = await SavePatientAnswer({patientProgress, patientId:user.id , answer })
+    const result = await SavePatientAnswer({ patientProgress, patientId: user.id, answer })
     res.status(200).json({
       success: true,
       data: result
