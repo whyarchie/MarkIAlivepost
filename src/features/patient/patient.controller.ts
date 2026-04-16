@@ -3,6 +3,7 @@ import {
   AssignMedicineSchema,
   CreateprogressSchema,
   medicalHistorySchema,
+  PatientAnswer,
   PatientConditionSchema,
   patientLoginSchema,
   patientSchema,
@@ -19,11 +20,11 @@ import {
   GetAssignedMedicineForPatient,
   GetPatientForHostpital,
   GetPatientProgressForPatient,
-  GetQuestionForToday,
   LoginPatient,
   MedicalHistoryCreateService,
   PatientConditionCreate,
   PatientConditionGet,
+  SavePatientAnswer,
   SavePatientFcmToken,
   SearchPatientByMobile,
 } from "./patient.service";
@@ -1020,19 +1021,22 @@ patientRouter.get('/condition/patientquestions', AuthUser, async (req, res, next
     next(error)
   }
 })
-
-patientRouter.get('/condition/patientquestiontoday' , AuthUser , async (req , res ,next)=>{
-  try{
+patientRouter.post('/condition/patientanswer', AuthUser, async (req, res, next) => {
+  try {
     const user = req.user
-    if(user?.role!=='Patient'){
-      throw new AppError(COMMON_ERROR.INVALID_ROLE , 403)
+    if (user?.role !== 'Patient') {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE)
     }
-    const questions:any = await GetQuestionForToday(user.id)
+    const data:{patientProgress:number, answer: []} = req.body;
+    const safeData = PatientAnswer.parse(data)
+    const patientProgress = safeData.patientProgress;
+    const answer = safeData.answers
+    const result = await SavePatientAnswer({patientProgress, patientId:user.id , answer })
     res.status(200).json({
       success: true,
-      data: questions
+      data: result
     })
-  }catch(error){
+  } catch (error) {
     next(error)
   }
 })

@@ -373,3 +373,37 @@ export async function GetQuestionForToday(userid: number) {
     throw error; // let the caller handle it
   }
 }
+
+
+type SavePatientAnswerInput = {
+  patientProgress: number;
+  patientId: number;
+  answer: string;
+};
+export async function SavePatientAnswer({patientProgress, patientId , answer}:SavePatientAnswerInput){
+  try {
+    const verify = await prisma.patientProgress.findUnique({
+      where:{
+        id: patientProgress,
+        patientCondition:{
+          patientId:patientId
+        }
+      }
+    })
+    if(!verify){
+      throw new AppError("Data mismatch!!", 403)
+    }
+    const data = await prisma.patientProgress.update({
+      where:{
+        id: patientProgress
+      },
+      data:{
+        answer: answer
+      }
+    })
+
+    return data;
+  } catch (error) {
+    throw error
+  }
+}

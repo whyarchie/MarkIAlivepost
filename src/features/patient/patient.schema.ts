@@ -191,7 +191,26 @@ export const CreateprogressSchema = z.object({
     message: COMMON_ERROR.STARTDATE_REQUIRE
   }),
 })
-
+export const PatientAnswer = z.object({
+  patientProgress: z.number({
+    message: COMMON_ERROR.INVALID_NUMBER,
+  }),
+  answers: z.array(
+    z.union([
+      z.object({
+        question: z.string(),
+        isText: z.literal(true),
+        answer: z.string().min(1),
+      }),
+      z.object({
+        question: z.string(),
+        isText: z.literal(false),
+        options: z.array(optionSchema).min(1),
+        answer: z.union([z.string(), z.number()]),
+      }),
+    ])
+  ).min(1),
+});
 
 
 export type PatientLoginInput = z.infer<typeof patientLoginSchema>;
