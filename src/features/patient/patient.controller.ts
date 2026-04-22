@@ -148,11 +148,14 @@ patientRouter.get("/search", AuthUser, async (req, res, next) => {
  *       400:
  *         description: Validation error
  */
-patientRouter.post("/create", async (req, res, next) => {
-  const data: PatientInput = req.body;
+patientRouter.post("/create",AuthUser, async (req, res, next) => {
   try {
+    const data: PatientInput = req.body;
     const safeData = patientSchema.parse(data);
-
+    const user = req.user
+    if(user?.role!=='Hospital'){
+      throw new AppError("Invalid hospital token please login again!!", 403)
+    }
     const patient = await CreatePatient(safeData);
     res.status(200).json({
       success: true,

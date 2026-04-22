@@ -8,7 +8,7 @@ export function AuthUser(
   res: Response,
   next: NextFunction
 ): void {
-  const token = req.cookies?.token;
+  const token = req.cookies.token;
 
   if (!token) {
     res.status(401).json({
