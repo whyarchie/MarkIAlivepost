@@ -7,16 +7,15 @@ const normalizeMobile = (mobile: string): string => {
     return digits.slice(2);
   }
   return digits;
-};
-export const patientSchema = z.object({
+};export const patientSchema = z.object({
   name: z
     .string()
-    .trim()                                    // 👈 "  John  " → "John"
+    .trim()
     .min(1, { message: PATIENT_ERRORS.NAME_REQUIRED }),
 
   dateOfBirth: z.coerce
     .date({ message: PATIENT_ERRORS.DOB_INVALID })
-    .refine((date) => !isNaN(date.getTime()), {  // 👈 catches "banana" → Invalid Date
+    .refine((date) => !isNaN(date.getTime()), {
       message: PATIENT_ERRORS.DOB_INVALID,
     })
     .refine((date) => date < new Date(), {
@@ -37,7 +36,13 @@ export const patientSchema = z.object({
     .regex(/^(?:\+91|91)?[6-9]\d{9}$/, {
       message: PATIENT_ERRORS.MOBILE_INVALID,
     })
-    .transform(normalizeMobile),               // 👈 same fix, consistent with login
+    .transform(normalizeMobile),
+
+  idType: z.enum(["AADHAR", "DRIVING_LICENSE", "PASSPORT"], {
+    message: "Invalid ID type",
+  }),
+
+  idNumber: z.string().trim().min(4, { message: "ID number is required" }),
 });
 
 
