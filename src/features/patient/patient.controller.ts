@@ -31,6 +31,8 @@ import {
 import { AuthUser } from "../../middleware/Auth";
 import { AppError } from "../../utils/AppError";
 import { COMMON_ERROR } from "../../constants/messages";
+import type { Request, Response } from "express";
+import { getPatientAllData } from "./patient.service";
 const patientRouter = express.Router();
 
 /**
@@ -1161,6 +1163,42 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
   }
 })
 
+
+export const getPatientAllDataController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const patientId = parseInt(req.params.id as string);
+
+    if (isNaN(patientId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid patient ID",
+      });
+    }
+
+    const data = await getPatientAllData(patientId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+
+  } catch (error: any) {
+    if (error.message === "Patient not found") {
+      return res.status(404).json({
+        success: false,
+        message: "Patient not found",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
 
 
 export default patientRouter;

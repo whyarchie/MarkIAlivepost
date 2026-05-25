@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { COMMON_ERROR, PATIENT_ERRORS } from "../../constants/messages";
 
+
 const normalizeMobile = (mobile: string): string => {
   const digits = mobile.trim().replace(/\D/g, "");
   if (digits.startsWith("91") && digits.length === 12) {
