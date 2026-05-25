@@ -409,3 +409,35 @@ export async function SavePatientAnswer({ patientProgress, patientId, answer }: 
     throw error
   }
 }
+export const getPatientAllData = async (patientId: number) => {
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    include: {
+      medicalHistory: {
+        include: {
+          disease: true,
+        },
+      },
+      conditions: {
+        include: {
+          disease: true,
+          hospital: true,
+          doctor: true,
+          medicineAlloted: {
+            include: {
+              medicine: true,
+              timings: true,
+            },
+          },
+          patientProgress: true,
+        },
+      },
+    },
+  });
+
+  if (!patient) {
+    throw new Error("Patient not found");
+  }
+
+  return patient;
+};
