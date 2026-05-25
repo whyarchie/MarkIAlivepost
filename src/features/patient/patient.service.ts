@@ -17,10 +17,12 @@ export async function CreatePatient(data: PatientInput) {
     update: {},
     create: {
       name: data.name,
-      dateOfBirth: new Date(data.dateOfBirth), // ensure it's a Date object
+      dateOfBirth: new Date(data.dateOfBirth),
       bloodGroup: data.bloodGroup,
       gender: data.gender,
       mobileNumber: data.mobileNumber,
+      idType: data.idType,
+      idNumber: data.idNumber,
     },
   });
   return patient;
