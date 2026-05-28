@@ -11,12 +11,14 @@ model Patient {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 }
-model PatientDevice{
-  id  Int @id @default(autoincrement())
-  fcmToken String  @unique
+
+model PatientDevice {
+  id        Int     @id @default(autoincrement())
+  fcmToken  String  @unique
   patientId Int
-  patient Patient @relation(fields: [patientId], references: [id])
+  patient   Patient @relation(fields: [patientId], references: [id])
 }
+
 enum Gender {
   MALE
   FEMALE
@@ -69,6 +71,7 @@ model MedicineAllotted {
   quantity           Int               @default(1)
   tillDate           DateTime
   timings            MedicineTimings[]
+  MedicineStatus    MedicineStatus[]
 }
 
 model MedicineTimings {
@@ -79,17 +82,17 @@ model MedicineTimings {
 }
 
 model PatientProgress {
-  id                 Int                @id @default(autoincrement())
+  id                 Int              @id @default(autoincrement())
   patientConditionId Int
-  patientCondition   PatientCondition   @relation(fields: [patientConditionId], references: [id], onDelete: Cascade)
+  patientCondition   PatientCondition @relation(fields: [patientConditionId], references: [id], onDelete: Cascade)
   description        String?
   jsonField          Json?
-  followUpStatus     FollowUpStatus @default(SCHEDULED)
-  questions         Json?
-  answer  Json?
-  scheduledDate     DateTime
+  followUpStatus     FollowUpStatus   @default(SCHEDULED)
+  questions          Json?
+  answer             Json?
+  scheduledDate      DateTime
   percentageRecovery Int?
-  createdAt          DateTime           @default(now())
+  createdAt          DateTime         @default(now())
 }
 
 enum FollowUpStatus {
@@ -100,3 +103,10 @@ enum FollowUpStatus {
   SUSPEND
 }
 
+model MedicineStatus {
+  id                Int              @id @default(autoincrement())
+  medicineAlloted   MedicineAllotted[]
+  medicineTaken     Boolean
+  remark            String?
+  createdAt          DateTime         @default(now())
+}
