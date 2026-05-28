@@ -19,9 +19,11 @@ import {
   CreatePatient,
   CreatePatientProgress,
   DeletePatientService,
+  GetAnsweredProgressForPatient,
   GetAssignedMedicineForPatient,
   GetPatientForHostpital,
   GetPatientProgressForPatient,
+  GetPatientProfile,
   LoginPatient,
   MedicalHistoryCreateService,
   PatientConditionCreate,
@@ -1214,6 +1216,47 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
  *       403:
  *         description: Invalid role or unauthorized/invalid medicine allotment IDs
  */
+/**
+ * @swagger
+ * /api/v1/patient/profile:
+ *   get:
+ *     summary: Retrieve logged-in patient profile details with all medical history and conditions (Patient Only)
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Patient profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       403:
+ *         description: Invalid role - only patients can view their own profile
+ *       404:
+ *         description: Patient not found
+ */
+patientRouter.get('/profile', AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user
+    if (user?.role !== 'Patient') {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403)
+    }
+    const result = await GetPatientProfile(user.id)
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 patientRouter.post('/medicineTaken', AuthUser, async (req ,res , next )=>{
   try {
     const user = req.user
