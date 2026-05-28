@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Patient" ALTER COLUMN "idType" DROP DEFAULT,
+ALTER COLUMN "idNumber" DROP DEFAULT;

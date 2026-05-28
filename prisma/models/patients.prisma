@@ -5,6 +5,8 @@ model Patient {
   bloodGroup     String
   gender         Gender
   mobileNumber   String             @unique
+  idType         IdType
+  idNumber       String             @unique
   medicalHistory MedicalHistory[]
   conditions     PatientCondition[]
   patientDevices PatientDevice[]
@@ -103,6 +105,11 @@ enum FollowUpStatus {
   SUSPEND
 }
 
+enum IdType {
+  AADHAR
+  DRIVING_LICENSE
+  PASSPORT
+}
 model MedicineStatus {
   id                Int              @id @default(autoincrement())
   medicineAlloted   MedicineAllotted[]
