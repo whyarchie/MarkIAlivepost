@@ -208,10 +208,17 @@ export const PatientAnswer = z.object({
   ).min(1),
 });
 
-
-export type PatientLoginInput = z.infer<typeof patientLoginSchema>;
+export const PatientMedicineStatusSchema = z.object({
+  medicineAllotedId: z.array(z.number({
+    message: COMMON_ERROR.INVALID_NUMBER,
+  })).min(1, "At least one medicine allotted ID is required"),
+  medicineTaken: z.boolean(),
+  remark: z.string().optional(),
+});
+export type  PatientLoginInput= z.infer<typeof patientLoginSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type MedicalHistoryCreate = z.infer<typeof medicalHistorySchema>;
 export type PatientConditionInput = z.infer<typeof PatientConditionSchema>;
 export type AssignMedicineInput = z.infer<typeof AssignMedicineSchema>;
 export type CreateprogressInput = z.infer<typeof CreateprogressSchema>
+export type PatientMedicineStatusInput = z.infer<typeof PatientMedicineStatusSchema>

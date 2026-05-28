@@ -6,6 +6,7 @@ import type {
   PatientConditionInput,
   PatientInput,
   PatientLoginInput,
+  PatientMedicineStatusInput,
 } from "./patient.schema";
 import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
@@ -407,5 +408,36 @@ export async function SavePatientAnswer({ patientProgress, patientId, answer }: 
     return data;
   } catch (error) {
     throw error
+  }
+}
+
+export async function PatientMedicineStatus(data: PatientMedicineStatusInput, patientId: number) {
+  try {
+    const count = await prisma.medicineAllotted.count({
+      where: {
+        id: { in: data.medicineAllotedId },
+        patientCondition: {
+          patientId: patientId
+        }
+      }
+    });
+
+    // if (count !== data.medicineAllotedId.length) {
+    //   throw new AppError("Unauthorized or invalid medicine allotment IDs", 403);
+    // }
+
+    const result = await prisma.medicineStatus.create({
+      data: {
+        medicineTaken: data.medicineTaken,
+        remark: data.remark,
+        medicineAlloted: {
+          connect: data.medicineAllotedId.map((id) => ({ id }))
+        }
+      }
+    });
+    console.log(result);
+    return result;
+  } catch (error) {
+    throw error;
   }
 }

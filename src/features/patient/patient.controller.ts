@@ -7,10 +7,12 @@ import {
   PatientConditionSchema,
   patientLoginSchema,
   patientSchema,
+  PatientMedicineStatusSchema,
   type CreateprogressInput,
   type MedicalHistoryCreate,
   type PatientInput,
   type PatientLoginInput,
+  type PatientMedicineStatusInput,
 } from "./patient.schema";
 import {
   AssignMedicine,
@@ -24,6 +26,7 @@ import {
   MedicalHistoryCreateService,
   PatientConditionCreate,
   PatientConditionGet,
+  PatientMedicineStatus,
   SavePatientAnswer,
   SavePatientFcmToken,
   SearchPatientByMobile,
@@ -31,6 +34,7 @@ import {
 import { AuthUser } from "../../middleware/Auth";
 import { AppError } from "../../utils/AppError";
 import { COMMON_ERROR } from "../../constants/messages";
+import { success } from "zod";
 const patientRouter = express.Router();
 
 /**
@@ -1162,6 +1166,71 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
 })
 
 
+/**
+ * @swagger
+ * /api/v1/patient/medicineTaken:
+ *   post:
+ *     summary: Log whether a patient has taken their allotted medicine(s) (Patient Only)
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - medicineAllotedId
+ *               - medicineTaken
+ *             properties:
+ *               medicineAllotedId:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 description: Array of allotted medicine IDs belonging to the logged-in patient
+ *               medicineTaken:
+ *                 type: boolean
+ *                 description: Whether the patient has taken the medicine(s) or not
+ *               remark:
+ *                 type: string
+ *                 description: Optional remark or comment
+ *             example:
+ *               medicineAllotedId: [1, 2]
+ *               medicineTaken: true
+ *               remark: "Took with water"
+ *     responses:
+ *       200:
+ *         description: Medicine status saved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       403:
+ *         description: Invalid role or unauthorized/invalid medicine allotment IDs
+ */
+patientRouter.post('/medicineTaken', AuthUser, async (req ,res , next )=>{
+  try {
+    const user = req.user
+    if(user?.role!=='Patient'){
+      throw new AppError(COMMON_ERROR.INVALID_ROLE , 403)
+    }
+    const data = PatientMedicineStatusSchema.parse(req.body)
+    const result = await PatientMedicineStatus(data, user!.id)
+   res.status(200).json({
+    success: true,
+    data: result
+   }) 
+    
+  } catch (error) {
+    next(error)
+  }
+})
 
 export default patientRouter;
 
