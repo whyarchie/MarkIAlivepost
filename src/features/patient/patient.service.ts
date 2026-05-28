@@ -49,6 +49,7 @@ export async function SearchPatientByMobile(mobileNumber: string, hospitalId: nu
             include: {
               medicine: true,
               timings: true,
+              MedicineStatus: true,
             },
           },
           patientProgress: true,
@@ -272,6 +273,7 @@ export async function GetAssignedMedicineForPatient(id: number) {
     include: {
       medicine: true,
       timings: true,
+      MedicineStatus: true,
       patientCondition: {
         include: {
           disease: true
@@ -420,9 +422,9 @@ export async function PatientMedicineStatus(data: PatientMedicineStatusInput, pa
       }
     });
 
-    // if (count !== data.medicineAllotedId.length) {
-    //   throw new AppError("Unauthorized or invalid medicine allotment IDs", 403);
-    // }
+    if (count !== data.medicineAllotedId.length) {
+      throw new AppError("Unauthorized or invalid medicine allotment IDs", 403);
+    }
 
     const result = await prisma.medicineStatus.create({
       data: {
@@ -438,4 +440,68 @@ export async function PatientMedicineStatus(data: PatientMedicineStatusInput, pa
   } catch (error) {
     throw error;
   }
+}
+
+export async function GetPatientProfile(patientId: number) {
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    include: {
+      medicalHistory: {
+        include: {
+          disease: true,
+        },
+      },
+      conditions: {
+        include: {
+          disease: true,
+          hospital: {
+            select: {
+              id: true,
+              name: true,
+              helplineNumber: true,
+              address: true,
+              userId: true,
+            },
+          },
+          doctor: true,
+          medicineAlloted: {
+            include: {
+              medicine: true,
+              timings: true,
+              MedicineStatus: true,
+            },
+          },
+          patientProgress: true,
+        },
+      },
+    },
+  });
+
+  if (!patient) {
+    throw new AppError("Patient not found", 404);
+  }
+
+  return patient;
+}
+
+export async function GetAnsweredProgressForPatient(patientId: number) {
+  const result = await prisma.patientProgress.findMany({
+    where: {
+      patientCondition: {
+        patientId: patientId
+      }
+    },
+    include: {
+      patientCondition: {
+        include: {
+          disease: true
+        }
+      }
+    },
+    orderBy: {
+      scheduledDate: 'desc'
+    }
+  });
+
+  return result.filter(item => item.answer !== null && item.answer !== undefined);
 }
