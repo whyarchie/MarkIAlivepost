@@ -507,3 +507,48 @@ export async function GetAnsweredProgressForPatient(patientId: number) {
 
   return result.filter(item => item.answer !== null && item.answer !== undefined);
 }
+
+export async function GetAllPatientsForHospital(hospitalId: number, page: number, limit: number) {
+  const skip = (page - 1) * limit;
+
+  const [patients, totalCount] = await Promise.all([
+    prisma.patient.findMany({
+      where: {
+        conditions: {
+          some: { hospitalId },
+        },
+      },
+      include: {
+        conditions: {
+          where: { hospitalId },
+          include: {
+            disease: true,
+            doctor: true,
+          },
+          orderBy: { startDate: "desc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+
+    prisma.patient.count({
+      where: {
+        conditions: {
+          some: { hospitalId },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    patients,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+}
