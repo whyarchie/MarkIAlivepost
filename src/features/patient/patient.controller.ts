@@ -19,6 +19,7 @@ import {
   CreatePatient,
   CreatePatientProgress,
   DeletePatientService,
+  GetAllPatientsForHospital,
   GetAnsweredProgressForPatient,
   GetAssignedMedicineForPatient,
   GetPatientForHostpital,
@@ -1274,6 +1275,99 @@ patientRouter.post('/medicineTaken', AuthUser, async (req ,res , next )=>{
     next(error)
   }
 })
+
+/**
+ * @swagger
+ * /api/v1/patient/list:
+ *   get:
+ *     summary: Get all patients for the authenticated hospital
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-indexed)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of patients per page (max 100)
+ *     responses:
+ *       200:
+ *         description: Paginated list of patients
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     patients:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
+ *                           dateOfBirth:
+ *                             type: string
+ *                             format: date-time
+ *                           bloodGroup:
+ *                             type: string
+ *                           gender:
+ *                             type: string
+ *                           mobileNumber:
+ *                             type: string
+ *                           conditions:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden — only hospitals can access this
+ */
+patientRouter.get("/list", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (user?.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+
+    const result = await GetAllPatientsForHospital(user.id, page, limit);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default patientRouter;
 
