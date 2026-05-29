@@ -550,3 +550,97 @@ export async function GetAllPatientsForHospital(hospitalId: number, page: number
     },
   };
 }
+
+/**
+ * Full patient profile with all relations.
+ * Excludes: Hospital.password, PatientDevice.fcmToken
+ *
+ * Lookup by patientId OR mobileNumber. Provide at least one.
+ */
+export async function GetFullPatientProfile({
+  patientId,
+  mobileNumber,
+  hospitalId,
+}: {
+  patientId?: number;
+  mobileNumber?: string;
+  hospitalId?: number;
+}) {
+  if (!patientId && !mobileNumber) {
+    throw new AppError("Patient ID or mobile number is required", 400);
+  }
+
+  // Normalize mobile: strip +91 or 91 prefix
+  let normalizedMobile: string | undefined;
+  if (mobileNumber) {
+    const digits = mobileNumber.trim().replace(/\D/g, "");
+    normalizedMobile = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
+  }
+
+  const where = patientId
+    ? { id: patientId }
+    : { mobileNumber: normalizedMobile! };
+
+  const patient = await prisma.patient.findUnique({
+    where,
+    include: {
+      medicalHistory: {
+        include: {
+          disease: true,
+        },
+        orderBy: { startDate: "desc" },
+      },
+      conditions: {
+        ...(hospitalId ? { where: { hospitalId } } : {}),
+        include: {
+          disease: true,
+          hospital: {
+            select: {
+              id: true,
+              name: true,
+              helplineNumber: true,
+              address: true,
+              userId: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          doctor: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              hospitalId: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          medicineAlloted: {
+            include: {
+              medicine: true,
+              timings: true,
+              MedicineStatus: true,
+            },
+          },
+          patientProgress: {
+            orderBy: { scheduledDate: "desc" },
+          },
+        },
+        orderBy: { startDate: "desc" },
+      },
+      patientDevices: {
+        select: {
+          id: true,
+          patientId: true,
+          // fcmToken intentionally excluded
+        },
+      },
+    },
+  });
+
+  if (!patient) {
+    throw new AppError("Patient not found", 404);
+  }
+
+  return patient;
+}
