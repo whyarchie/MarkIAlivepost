@@ -551,6 +551,58 @@ export async function GetAllPatientsForHospital(hospitalId: number, page: number
   };
 }
 
+export async function GetHighRiskPatientsForHospital(hospitalId: number, page: number, limit: number) {
+  const skip = (page - 1) * limit;
+
+  const [patients, totalCount] = await Promise.all([
+    prisma.patient.findMany({
+      where: {
+        conditions: {
+          some: {
+            hospitalId,
+            status: "CRITICAL",
+          },
+        },
+      },
+      include: {
+        conditions: {
+          where: { hospitalId },
+          include: {
+            disease: true,
+            doctor: true,
+          },
+          orderBy: { startDate: "desc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+
+    prisma.patient.count({
+      where: {
+        conditions: {
+          some: {
+            hospitalId,
+            status: "CRITICAL",
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    patients,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+}
+
+
 /**
  * Full patient profile with all relations.
  * Excludes: Hospital.password, PatientDevice.fcmToken
