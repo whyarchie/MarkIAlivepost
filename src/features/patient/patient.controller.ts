@@ -20,8 +20,10 @@ import {
   CreatePatientProgress,
   DeletePatientService,
   GetAllPatientsForHospital,
+  GetHighRiskPatientsForHospital,
   GetAnsweredProgressForPatient,
   GetAssignedMedicineForPatient,
+  GetFullPatientProfile,
   GetPatientForHostpital,
   GetPatientProgressForPatient,
   GetPatientProfile,
@@ -1217,47 +1219,6 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
  *       403:
  *         description: Invalid role or unauthorized/invalid medicine allotment IDs
  */
-/**
- * @swagger
- * /api/v1/patient/profile:
- *   get:
- *     summary: Retrieve logged-in patient profile details with all medical history and conditions (Patient Only)
- *     tags: [Patients]
- *     security:
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Patient profile retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *       403:
- *         description: Invalid role - only patients can view their own profile
- *       404:
- *         description: Patient not found
- */
-patientRouter.get('/profile', AuthUser, async (req, res, next) => {
-  try {
-    const user = req.user
-    if (user?.role !== 'Patient') {
-      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403)
-    }
-    const result = await GetPatientProfile(user.id)
-    res.status(200).json({
-      success: true,
-      data: result
-    })
-  } catch (error) {
-    next(error)
-  }
-})
-
 patientRouter.post('/medicineTaken', AuthUser, async (req ,res , next )=>{
   try {
     const user = req.user
@@ -1368,6 +1329,193 @@ patientRouter.get("/list", AuthUser, async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/patient/high-risk:
+ *   get:
+ *     summary: Get high risk patients for the authenticated hospital (patients with CRITICAL conditions)
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number (1-indexed)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of patients per page (max 100)
+ *     responses:
+ *       200:
+ *         description: Paginated list of high-risk patients
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     patients:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           name:
+ *                             type: string
+ *                           dateOfBirth:
+ *                             type: string
+ *                             format: date-time
+ *                           bloodGroup:
+ *                             type: string
+ *                           gender:
+ *                             type: string
+ *                           mobileNumber:
+ *                             type: string
+ *                           conditions:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden — only hospitals can access this
+ */
+patientRouter.get("/high-risk", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (user?.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+
+    const result = await GetHighRiskPatientsForHospital(user.id, page, limit);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+/**
+ * @swagger
+ * /api/v1/patient/profile:
+ *   get:
+ *     summary: Get full patient profile (Patient self or Hospital by mobile number)
+ *     description: |
+ *       - **Patient cookie**: Returns the logged-in patient's own profile (no query params needed).
+ *       - **Hospital cookie**: Requires `mobile` query param to look up a patient by mobile number. Only conditions at this hospital are returned.
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: mobile
+ *         schema:
+ *           type: string
+ *         description: Patient mobile number (required for Hospital role)
+ *         example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: Full patient profile with all related data (password and fcmToken excluded)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     name:
+ *                       type: string
+ *                     dateOfBirth:
+ *                       type: string
+ *                       format: date-time
+ *                     bloodGroup:
+ *                       type: string
+ *                     gender:
+ *                       type: string
+ *                     mobileNumber:
+ *                       type: string
+ *                     medicalHistory:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     conditions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     patientDevices:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Mobile number required (for Hospital role)
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Invalid role
+ *       404:
+ *         description: Patient not found
+ */
+patientRouter.get('/profile', AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user;
+
+    if (user?.role === 'Patient') {
+      // Patient: return own profile
+      const result = await GetFullPatientProfile({ patientId: user.id });
+      res.status(200).json({ success: true, data: result });
+      return;
+    }
+
+    if (user?.role === 'Hospital') {
+      // Hospital: look up patient by mobile number
+      const mobile = req.query.mobile as string;
+      if (!mobile) {
+        throw new AppError("mobile query parameter is required", 400);
+      }
+      const result = await GetFullPatientProfile({ mobileNumber: mobile, hospitalId: user.id });
+      res.status(200).json({ success: true, data: result });
+      return;
+    }
+
+    throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+  } catch (error) {
+    next(error);
+  }
+})
 
 export default patientRouter;
 
