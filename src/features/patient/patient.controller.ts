@@ -106,6 +106,8 @@ patientRouter.get("/search", AuthUser, async (req, res, next) => {
  *               - bloodGroup
  *               - gender
  *               - mobileNumber
+ *               - idType
+ *               - idNumber
  *             properties:
  *               name:
  *                 type: string
@@ -122,12 +124,20 @@ patientRouter.get("/search", AuthUser, async (req, res, next) => {
  *               mobileNumber:
  *                 type: string
  *                 pattern: "^(?:\\+91|91)?[6-9]\\d{9}$"
+ *               idType:
+ *                 type: string
+ *                 enum: ["AADHAR", "DRIVING_LICENSE", "PASSPORT"]
+ *               idNumber:
+ *                 type: string
+ *                 minLength: 4
  *             example:
  *               name: "Amit Kumar"
  *               dateOfBirth: "1985-06-15T00:00:00.000Z"
  *               bloodGroup: "B+"
  *               gender: "MALE"
  *               mobileNumber: "9876543210"
+ *               idType: "AADHAR"
+ *               idNumber: "123456789012"
  *     responses:
  *       200:
  *         description: Patient created successfully
@@ -154,6 +164,10 @@ patientRouter.get("/search", AuthUser, async (req, res, next) => {
  *                       type: string
  *                     mobileNumber:
  *                       type: string
+ *                     idType:
+ *                       type: string
+ *                     idNumber:
+ *                       type: string
  *       400:
  *         description: Validation error
  */
@@ -165,7 +179,9 @@ patientRouter.post("/create",AuthUser, async (req, res, next) => {
     if(user?.role!=='Hospital'){
       throw new AppError("Invalid hospital token please login again!!", 403)
     }
+    console.log(safeData)
     const patient = await CreatePatient(safeData);
+    console.log(patient)
     res.status(200).json({
       success: true,
       data: patient,

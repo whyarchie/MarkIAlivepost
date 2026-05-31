@@ -1,4 +1,5 @@
 import prisma from "../../../config/prisma";
+import { AppError } from "../../../utils/AppError";
 
 /**
  * Returns dashboard summary counts scoped to a specific hospital.
@@ -122,11 +123,11 @@ export async function GetDashboardChartsData(hospitalId: number) {
           percentageRecovery: { not: null }
         },
         select: {
-          createdAt: true,
+          scheduledDate: true,
           percentageRecovery: true
         },
         orderBy: {
-          createdAt: 'asc'
+          scheduledDate: 'asc'
         }
       })
     ]);
@@ -166,7 +167,8 @@ export async function GetDashboardChartsData(hospitalId: number) {
   // Formatter for Patient Recovery Progress Over Time (grouped daily)
   const dailyMap: { [date: string]: { sum: number; count: number } } = {};
   for (const progress of recoveryProgressRaw) {
-    const dateStr = progress.createdAt.toISOString().split('T')[0];
+    const dateStr = progress.scheduledDate.toISOString().split('T')[0];
+    if (!dateStr) continue;
     if (!dailyMap[dateStr]) {
       dailyMap[dateStr] = { sum: 0, count: 0 };
     }
@@ -188,4 +190,62 @@ export async function GetDashboardChartsData(hospitalId: number) {
     recoveryTrend,
   };
 }
+
+export async function SeedRecoveryTrendForHospital(hospitalId: number) {
+  const conditions = await prisma.patientCondition.findMany({
+    where: { hospitalId },
+    select: { id: true }
+  });
+
+  if (conditions.length === 0) {
+    throw new AppError("No patient conditions found for this hospital. Please seed patients and conditions first.", 400);
+  }
+
+  const today = new Date();
+  const targetConditions = conditions.slice(0, 3);
+  let seededCount = 0;
+
+  for (const condition of targetConditions) {
+    // Clear any existing progress records with percentageRecovery to avoid duplicates
+    await prisma.patientProgress.deleteMany({
+      where: {
+        patientConditionId: condition.id,
+        percentageRecovery: { not: null }
+      }
+    });
+
+    // Generate 5 days of recovery data leading up to today
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      date.setHours(9, 0, 0, 0); // Keep timestamps uniform
+
+      // Calculate realistic recovery percentage
+      let recoveryPercent = 0;
+      if (condition.id % 3 === 0) {
+        recoveryPercent = Math.max(10, 100 - (i * 16));
+      } else if (condition.id % 3 === 1) {
+        recoveryPercent = Math.max(10, 90 - (i * 14));
+      } else {
+        recoveryPercent = Math.max(10, 95 - (i * 15));
+      }
+
+      await prisma.patientProgress.create({
+        data: {
+          patientConditionId: condition.id,
+          scheduledDate: date,
+          percentageRecovery: recoveryPercent,
+          followUpStatus: "SUCCESSFUL",
+          createdAt: date, // Overrides default to work on older and newer code
+          questions: [{ question: "Recovery status check", isText: true }],
+          answer: [{ question: "Recovery status check", answer: "Condition has significantly improved." }]
+        }
+      });
+      seededCount++;
+    }
+  }
+
+  return seededCount;
+}
+
 

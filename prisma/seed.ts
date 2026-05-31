@@ -159,6 +159,8 @@ async function main() {
                 bloodGroup: 'B+',
                 gender: 'MALE',
                 mobileNumber: '9876543210',
+                idType: 'AADHAR',
+                idNumber: '111122223333',
             },
         }),
         prisma.patient.upsert({
@@ -170,6 +172,8 @@ async function main() {
                 bloodGroup: 'O+',
                 gender: 'FEMALE',
                 mobileNumber: '9876543211',
+                idType: 'PASSPORT',
+                idNumber: 'A1234567',
             },
         }),
         prisma.patient.upsert({
@@ -181,6 +185,8 @@ async function main() {
                 bloodGroup: 'A-',
                 gender: 'MALE',
                 mobileNumber: '9876543212',
+                idType: 'DRIVING_LICENSE',
+                idNumber: 'DL1234567890123',
             },
         }),
         prisma.patient.upsert({
@@ -192,6 +198,8 @@ async function main() {
                 bloodGroup: 'AB+',
                 gender: 'FEMALE',
                 mobileNumber: '9876543213',
+                idType: 'AADHAR',
+                idNumber: '444455556666',
             },
         }),
     ]);

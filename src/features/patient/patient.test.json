@@ -7,7 +7,9 @@
             "dateOfBirth": "1990-01-01T00:00:00.000Z",
             "bloodGroup": "O+",
             "gender": "MALE",
-            "mobileNumber": "919876543210"
+            "mobileNumber": "919876543210",
+            "idType": "AADHAR",
+            "idNumber": "123456789012"
         },
         "expectedStatus": 200
     },
