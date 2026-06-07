@@ -1108,7 +1108,7 @@ patientRouter.post('/condition/patientanswer', AuthUser, async (req, res, next) 
     if (user?.role !== 'Patient') {
       throw new AppError(COMMON_ERROR.INVALID_ROLE)
     }
-    const data: { patientProgress: number, answer: Array<{ question: string, answer: string }> } = req.body;
+    const data: { patientProgress: number, answers: Array<{ question: string, answer: string }> } = req.body;
     const safeData = PatientAnswer.parse(data)
     const patientProgress = safeData.patientProgress;
     const answer = safeData.answers

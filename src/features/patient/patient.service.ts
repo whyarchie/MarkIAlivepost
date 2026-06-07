@@ -13,7 +13,6 @@ import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
 
 export async function CreatePatient(data: PatientInput) {
-  console.log(data.idNumber)
   const patient = await prisma.patient.upsert({
     where: { mobileNumber: data.mobileNumber },
     update: {},
@@ -404,7 +403,8 @@ export async function SavePatientAnswer({ patientProgress, patientId, answer }: 
         id: patientProgress
       },
       data: {
-        answer: answer
+        answer: answer,
+        followUpStatus: "SUCCESSFUL",
       }
     })
 
