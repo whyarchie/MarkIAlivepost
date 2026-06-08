@@ -11,6 +11,8 @@ import type {
 import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
+import { UserSummarySystemPrompt } from "../../prompt/patientSummary";
+import GemmaAi from "../../utils/gemma_ai";
 
 export async function CreatePatient(data: PatientInput) {
   const patient = await prisma.patient.upsert({
@@ -683,13 +685,6 @@ export async function GetFullPatientProfile({
         },
         orderBy: { startDate: "desc" },
       },
-      patientDevices: {
-        select: {
-          id: true,
-          patientId: true,
-          // fcmToken intentionally excluded
-        },
-      },
     },
   });
 
@@ -698,4 +693,13 @@ export async function GetFullPatientProfile({
   }
 
   return patient;
+}
+
+export async function GetPatientSummary(id:number){
+  const patientProfile = await GetFullPatientProfile({patientId: id})
+  const summary =await  GemmaAi({
+    SystemPrompt: UserSummarySystemPrompt,
+    Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`
+  })
+  return summary
 }

@@ -35,11 +35,11 @@ import {
   SavePatientAnswer,
   SavePatientFcmToken,
   SearchPatientByMobile,
+  GetPatientSummary,
 } from "./patient.service";
 import { AuthUser } from "../../middleware/Auth";
 import { AppError } from "../../utils/AppError";
 import { COMMON_ERROR } from "../../constants/messages";
-import { success } from "zod";
 const patientRouter = express.Router();
 
 /**
@@ -171,12 +171,12 @@ patientRouter.get("/search", AuthUser, async (req, res, next) => {
  *       400:
  *         description: Validation error
  */
-patientRouter.post("/create",AuthUser, async (req, res, next) => {
+patientRouter.post("/create", AuthUser, async (req, res, next) => {
   try {
     const data: PatientInput = req.body;
     const safeData = patientSchema.parse(data);
     const user = req.user
-    if(user?.role!=='Hospital'){
+    if (user?.role !== 'Hospital') {
       throw new AppError("Invalid hospital token please login again!!", 403)
     }
     console.log(safeData)
@@ -1235,19 +1235,19 @@ patientRouter.post('/fcm', AuthUser, async (req, res, next) => {
  *       403:
  *         description: Invalid role or unauthorized/invalid medicine allotment IDs
  */
-patientRouter.post('/medicineTaken', AuthUser, async (req ,res , next )=>{
+patientRouter.post('/medicineTaken', AuthUser, async (req, res, next) => {
   try {
     const user = req.user
-    if(user?.role!=='Patient'){
-      throw new AppError(COMMON_ERROR.INVALID_ROLE , 403)
+    if (user?.role !== 'Patient') {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403)
     }
     const data = PatientMedicineStatusSchema.parse(req.body)
     const result = await PatientMedicineStatus(data, user!.id)
-   res.status(200).json({
-    success: true,
-    data: result
-   }) 
-    
+    res.status(200).json({
+      success: true,
+      data: result
+    })
+
   } catch (error) {
     next(error)
   }
@@ -1533,6 +1533,68 @@ patientRouter.get('/profile', AuthUser, async (req, res, next) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/v1/patient/summary:
+ *   get:
+ *     summary: Get patient summary
+ *     description: |
+ *       - Patients can retrieve their own summary.
+ *       - Hospitals can retrieve a patient's summary by providing the patient's userId.
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: false
+ *         schema:
+ *           type: integer
+ *         description: Patient user ID (required for Hospital role)
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Patient summary retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Missing or invalid userId for Hospital role
+ *       403:
+ *         description: Invalid role
+ */
+patientRouter.get('/summary', AuthUser, async (req, res, next) => {
+  try {
+    let result;
+    const user = req.user;
+    if (user?.role === 'Patient') {
+      result = await GetPatientSummary(user.id)
+      res.status(200).json({
+        success: true,
+        data: result
+      })
+    } else if (user?.role === 'Hospital') {
+      const userId = Number(req.query.userId as string)
+      result = await GetPatientSummary(userId)
+      res.status(200).json({
+        success: true,
+        data: result
+      })
+    } else {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+  }
+  catch (error) {
+    next(error);
+  }
+});
 export default patientRouter;
 
 
