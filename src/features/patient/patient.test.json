@@ -1,22 +1,38 @@
 {
     "_info": "Test payloads for all Patient API endpoints. Copy-paste into Swagger UI or import into Postman.",
     "POST /api/v1/patient/create": {
-        "description": "Create a new patient (no auth required)",
+        "description": "Create a new patient (Hospital auth required)",
+        "auth": "cookieAuth (Hospital role)",
         "requestBody": {
             "name": "John Doe",
             "dateOfBirth": "1990-01-01T00:00:00.000Z",
             "bloodGroup": "O+",
             "gender": "MALE",
-            "mobileNumber": "919876543210",
+            "mobileNumber": "9876543210",
             "idType": "AADHAR",
             "idNumber": "123456789012"
         },
         "expectedStatus": 200
     },
+    "POST /api/v1/patient/create (ABHA_ID)": {
+        "description": "Create a new patient with ABHA ID (Hospital auth required)",
+        "auth": "cookieAuth (Hospital role)",
+        "requestBody": {
+            "name": "Raj Kumar",
+            "dateOfBirth": "1985-05-15T00:00:00.000Z",
+            "bloodGroup": "B+",
+            "gender": "MALE",
+            "mobileNumber": "9123456789",
+            "idType": "ABHA_ID",
+            "idNumber": "123456789012345"
+        },
+        "expectedStatus": 200,
+        "notes": "ABHA ID is typically 14-16 digits. All ID types supported: AADHAR, DRIVING_LICENSE, PASSPORT, ABHA_ID, PATIENT_ID"
+    },
     "POST /api/v1/patient/login": {
         "description": "Login with mobile + DOB, sets token cookie",
         "requestBody": {
-            "mobileNumber": "919876543210",
+            "mobileNumber": "9876543210",
             "dateOfBirth": "1990-01-01T00:00:00.000Z"
         },
         "expectedStatus": 200
@@ -24,7 +40,7 @@
     "POST /api/v1/patient/loginmedicine": {
         "description": "Login and get assigned medicines in one call",
         "requestBody": {
-            "mobileNumber": "919876543210",
+            "mobileNumber": "9876543210",
             "dateOfBirth": "1990-01-01T00:00:00.000Z"
         },
         "expectedStatus": 200

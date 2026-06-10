@@ -38,7 +38,7 @@ const normalizeMobile = (mobile: string): string => {
     })
     .transform(normalizeMobile),
 
-  idType: z.enum(["AADHAR", "DRIVING_LICENSE", "PASSPORT"], {
+  idType: z.enum(["AADHAR", "DRIVING_LICENSE", "PASSPORT", "ABHA_ID", "PATIENT_ID"], {
     message: "Invalid ID type",
   }),
 

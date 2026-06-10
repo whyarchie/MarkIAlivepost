@@ -111,6 +111,8 @@ enum IdType {
   AADHAR
   DRIVING_LICENSE
   PASSPORT
+  ABHA_ID
+  PATIENT_ID
 }
 model MedicineStatus {
   id                Int              @id @default(autoincrement())
