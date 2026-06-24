@@ -11,7 +11,7 @@ import type {
 import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
-import { UserSummarySystemPrompt } from "../../prompt/patientSummary";
+import { UserSummarySystemPrompt, parsePatientSummary, buildRecoveryTrajectory } from "../../prompt/patientSummary";
 import GemmaAi from "../../utils/gemma_ai";
 
 export async function CreatePatient(data: PatientInput) {
@@ -697,9 +697,14 @@ export async function GetFullPatientProfile({
 
 export async function GetPatientSummary(id:number){
   const patientProfile = await GetFullPatientProfile({patientId: id})
-  const summary =await  GemmaAi({
+  const raw = await GemmaAi({
     SystemPrompt: UserSummarySystemPrompt,
     Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`
   })
-  return summary
+  // The model returns structured JSON; the recovery trajectory is computed from
+  // the DB so the chart is always accurate regardless of model fidelity.
+  return {
+    ...parsePatientSummary(raw),
+    recoveryTrajectory: buildRecoveryTrajectory(patientProfile),
+  }
 }
