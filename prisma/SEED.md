@@ -17,6 +17,7 @@ bun run db:seed
 | Hospital | 3 | Apollo Delhi, AIIMS, Fortis Gurgaon |
 | Doctor | 4 | 2 at Apollo, 1 at AIIMS, 1 at Fortis |
 | Patient | 4 | Mixed genders, blood groups |
+| Admin | 1 | Bootstrap super admin (`super_admin`) |
 | MedicalHistory | 5 | Linked to patients & diseases |
 | PatientCondition | 4 | STABLE, CRITICAL, RECOVERED statuses |
 | MedicineAllotted | 4 | Medicines assigned to conditions |
@@ -32,6 +33,12 @@ All hospitals share the same password for dev convenience:
 | Apollo Hospital Delhi | `apollo_delhi` | `Hospital@123` |
 | AIIMS New Delhi | `aiims_delhi` | `Hospital@123` |
 | Fortis Gurgaon | `fortis_gurgaon` | `Hospital@123` |
+
+**Admin console:**
+
+| Name | User ID | Password |
+|---|---|---|
+| Super Admin | `super_admin` | `Admin@123` |
 
 ## Idempotency
 

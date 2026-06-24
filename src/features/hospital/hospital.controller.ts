@@ -18,8 +18,10 @@ const hospitalRouter = express.Router();
  * @swagger
  * /api/v1/hospital/create:
  *   post:
- *     summary: Create a new hospital
+ *     summary: Create a new hospital (Admin Only)
  *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -47,17 +49,13 @@ const hospitalRouter = express.Router();
  *       201:
  *         description: Hospital created successfully
  */
-//for now i have removed the admin logic as it require to have admin
-hospitalRouter.post("/create", async (req, res, next) => {
+hospitalRouter.post("/create", AuthUser, async (req, res, next) => {
   try {
-    // const user = req.user!   // guaranteed by middleware
+    const user = req.user!; // guaranteed by middleware
 
-    // if (user.role !== "Admin") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Only admin can create hospitals",
-    //   })
-    // }
+    if (user.role !== "Admin") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
 
     let safeData = HospitalSchema.parse(req.body);
     const hash = await HashPassword(safeData.password);

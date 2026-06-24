@@ -15,10 +15,11 @@ const allowedOrigins = [
   "http://api.alivepost.com",
   "http://localhost:3000",
   "http://localhost:3001",
+  "http://localhost:3002"
 ]
 
 app.use(cors({
-  origin: function (origin, callback) {
+  origin: function(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {

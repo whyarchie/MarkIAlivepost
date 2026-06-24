@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { AppError } from "../utils/AppError";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -42,4 +43,29 @@ export function AuthUser(
 
     next(error);
   }
+}
+
+/**
+ * Role guard. Must run AFTER `AuthUser`, which populates `req.user`.
+ * Usage: router.post("/create", AuthUser, requireRole("Admin"), handler)
+ */
+export function requireRole(...roles: AuthUserType["role"][]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const user = req.user;
+
+    if (!user) {
+      // Defensive: AuthUser should have populated req.user already.
+      next(new AppError("Authentication required", 401));
+      return;
+    }
+
+    if (!roles.includes(user.role)) {
+      next(
+        new AppError("You do not have permission to perform this action", 403)
+      );
+      return;
+    }
+
+    next();
+  };
 }

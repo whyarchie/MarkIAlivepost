@@ -457,6 +457,22 @@ async function main() {
 });
     console.log('✅ Seeded patient progress records');
 
+    // ── 11. Admin (bootstrap) ────────────────────────────────────────
+    // POST /api/v1/admin/create is admin-only, so the very first admin must be
+    // seeded here to break the chicken-and-egg bootstrap problem.
+    const adminPassword = await bcrypt.hash('Admin@123', 10);
+    const admin = await prisma.admin.upsert({
+        where: { userId: 'super_admin' },
+        update: {},
+        create: {
+            name: 'Super Admin',
+            userId: 'super_admin',
+            password: adminPassword,
+        },
+    });
+
+    console.log(`✅ Seeded admin: ${admin.userId}`);
+
     console.log('\n🎉 Database seeding complete!');
 }
 
