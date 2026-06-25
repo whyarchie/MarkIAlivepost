@@ -34,5 +34,22 @@ export const AdminLoginSchema = z.object({
     .max(50),
 });
 
+// Admin writes structured clinical data into a PatientProgress.jsonField.
+// jsonField must be a JSON object or array (not a primitive/null), which also
+// sidesteps Prisma's NULL-on-Json handling.
+const jsonObjectOrArray = z.union(
+  [z.record(z.string(), z.any()), z.array(z.any())],
+  { message: "jsonField must be a JSON object or array" }
+);
+
+export const AdminProgressJsonSchema = z.object({
+  progressId: z.coerce
+    .number({ message: "progressId is required" })
+    .int("progressId must be an integer")
+    .positive("progressId must be a positive integer"),
+  jsonField: jsonObjectOrArray,
+});
+
 export type AdminCreate = z.infer<typeof AdminSchema>;
 export type AdminLogin = z.infer<typeof AdminLoginSchema>;
+export type AdminProgressJson = z.infer<typeof AdminProgressJsonSchema>;

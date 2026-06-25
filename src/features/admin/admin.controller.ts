@@ -1,8 +1,14 @@
 import express from "express";
-import { AdminLoginSchema, AdminSchema } from "./admin.schema";
-import { AdminCreate, AdminLogin } from "./admin.service";
+import { AdminLoginSchema, AdminSchema, AdminProgressJsonSchema } from "./admin.schema";
+import {
+  AdminCreate,
+  AdminLogin,
+  AdminGetPatientByMobile,
+  AdminUpdateProgressJsonField,
+} from "./admin.service";
 import HashPassword from "../../utils/hashUtils";
 import { AuthUser, requireRole } from "../../middleware/Auth";
+import { AppError } from "../../utils/AppError";
 
 const adminRouter = express.Router();
 
@@ -104,5 +110,95 @@ adminRouter.post("/login", async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/admin/patient:
+ *   get:
+ *     summary: Look up a patient (with conditions and progress) by mobile number (admin only)
+ *     tags: [Admins]
+ *     parameters:
+ *       - in: query
+ *         name: mobile
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: Patient profile with conditions and their progress entries
+ *       400:
+ *         description: Missing mobile query parameter
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Patient not found
+ */
+adminRouter.get(
+  "/patient",
+  AuthUser,
+  requireRole("Admin"),
+  async (req, res, next) => {
+    try {
+      const mobile = String(req.query.mobile ?? "").trim();
+      if (!mobile) {
+        throw new AppError("mobile query parameter is required", 400);
+      }
+      const patient = await AdminGetPatientByMobile(mobile);
+      res.status(200).json({ success: true, data: patient });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/progress/jsonfield:
+ *   patch:
+ *     summary: Set the jsonField on a patient progress entry (admin only)
+ *     tags: [Admins]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               progressId:
+ *                 type: integer
+ *               jsonField:
+ *                 type: object
+ *             example:
+ *               progressId: 12
+ *               jsonField: { vitals: { bp: "120/80", spo2: 97 }, notes: "stable" }
+ *     responses:
+ *       200:
+ *         description: Updated progress entry
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Progress entry not found
+ */
+adminRouter.patch(
+  "/progress/jsonfield",
+  AuthUser,
+  requireRole("Admin"),
+  async (req, res, next) => {
+    try {
+      const { progressId, jsonField } = AdminProgressJsonSchema.parse(req.body);
+      const updated = await AdminUpdateProgressJsonField(progressId, jsonField);
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default adminRouter;
