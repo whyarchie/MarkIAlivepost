@@ -62,6 +62,25 @@ export const patientLoginSchema = z.object({
     }),
 });
 
+// Self-delete requires the patient to re-confirm their identity (the same
+// credentials used to log in) so a leaked/lingering token alone can't wipe
+// the account — the caller must prove they are the account owner.
+export const patientDeleteSchema = z.object({
+  mobileNumber: z
+    .string()
+    .trim()
+    .regex(/^(?:\+91|91)?[6-9]\d{9}$/, {
+      message: PATIENT_ERRORS.MOBILE_INVALID,
+    })
+    .transform(normalizeMobile),
+
+  dateOfBirth: z.coerce
+    .date({ message: PATIENT_ERRORS.DOB_INVALID })
+    .refine((date) => date < new Date(), {
+      message: PATIENT_ERRORS.DOB_FUTURE,
+    }),
+});
+
 // Medical History
 
 export const medicalHistorySchema = z
@@ -216,6 +235,7 @@ export const PatientMedicineStatusSchema = z.object({
   remark: z.string().optional(),
 });
 export type  PatientLoginInput= z.infer<typeof patientLoginSchema>;
+export type PatientDeleteInput = z.infer<typeof patientDeleteSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type MedicalHistoryCreate = z.infer<typeof medicalHistorySchema>;
 export type PatientConditionInput = z.infer<typeof PatientConditionSchema>;

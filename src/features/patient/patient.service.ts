@@ -6,6 +6,7 @@ import type {
   PatientConditionInput,
   PatientInput,
   PatientLoginInput,
+  PatientDeleteInput,
   PatientMedicineStatusInput,
 } from "./patient.schema";
 import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
@@ -88,20 +89,47 @@ export async function LoginPatient(data: PatientLoginInput) {
   return { patient, token };
 }
 
+// Permanently delete a patient and everything that hangs off them.
+// PatientCondition and MedicalHistory are removed automatically via onDelete:
+// Cascade, but PatientDevice has no cascade rule, so we clear its rows first —
+// all inside one transaction so a failure leaves nothing half-deleted.
+export async function HardDeletePatient(patientId: number) {
+  return prisma.$transaction(async (tx) => {
+    await tx.patientDevice.deleteMany({ where: { patientId } });
+    return tx.patient.delete({ where: { id: patientId } });
+  });
+}
+
 //Delete Patient service
 
-export async function DeletePatientService(id: number | undefined) {
+export async function DeletePatientService(
+  id: number | undefined,
+  credentials: PatientDeleteInput
+) {
   if (!id) {
     throw new AppError(COMMON_ERROR.ID_NOT_FOUND, 404);
   }
-  try {
-    const patient = await prisma.patient.delete({
-      where: {
-        id: id,
-      },
-    });
 
-    return patient;
+  // Verify the user before deleting: the account identified by the token must
+  // exist AND the re-submitted identity (mobile + date of birth) must match it.
+  const patient = await prisma.patient.findUnique({ where: { id } });
+
+  if (!patient) {
+    throw new AppError(PATIENT_ERRORS.INVALID_PATIENT, 404);
+  }
+
+  const identityMatches =
+    patient.mobileNumber === credentials.mobileNumber &&
+    patient.dateOfBirth.toISOString() === credentials.dateOfBirth.toISOString();
+
+  if (!identityMatches) {
+    throw new AppError(error.INVALID_CREDENTIALS, 401);
+  }
+
+  try {
+    const deleted = await HardDeletePatient(id);
+
+    return deleted;
   } catch (error: any) {
     // Record not found
     if (error.code === "P2025") {

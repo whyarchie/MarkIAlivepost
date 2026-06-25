@@ -58,6 +58,24 @@ export const AdminProgressJsonSchema = z.object({
   followUpStatus: FollowUpStatusEnum.optional(),
 });
 
+// Admin deletes an entire patient by id.
+export const AdminDeletePatientSchema = z.object({
+  patientId: z.coerce
+    .number({ message: "patientId is required" })
+    .int("patientId must be an integer")
+    .positive("patientId must be a positive integer"),
+});
+
+// Admin deletes a single patient condition by id.
+export const AdminDeleteConditionSchema = z.object({
+  patientConditionId: z.coerce
+    .number({ message: "patientConditionId is required" })
+    .int("patientConditionId must be an integer")
+    .positive("patientConditionId must be a positive integer"),
+});
+
 export type AdminCreate = z.infer<typeof AdminSchema>;
 export type AdminLogin = z.infer<typeof AdminLoginSchema>;
 export type AdminProgressJson = z.infer<typeof AdminProgressJsonSchema>;
+export type AdminDeletePatient = z.infer<typeof AdminDeletePatientSchema>;
+export type AdminDeleteCondition = z.infer<typeof AdminDeleteConditionSchema>;

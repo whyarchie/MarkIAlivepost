@@ -1,7 +1,7 @@
 import express from "express";
 import { AuthUser } from "../../middleware/Auth";
-import { HospitalLoginSchema, HospitalSchema } from "./hospital.schema";
-import { GetHospitalById, GetPatientMedicineForHospital, HospitalCreate, HospitalLogin, SearchHospital } from "./hospital.service";
+import { HospitalLoginSchema, HospitalSchema, HospitalDeletePatientSchema } from "./hospital.schema";
+import { GetHospitalById, GetPatientMedicineForHospital, HospitalCreate, HospitalDeletePatient, HospitalLogin, SearchHospital } from "./hospital.service";
 import HashPassword from "../../utils/hashUtils";
 import { success } from "zod";
 import { AppError } from "../../utils/AppError";
@@ -212,4 +212,59 @@ hospitalRouter.get("/patientmedicine", AuthUser, async (req, res, next) => {
     next(error);
   }
 });
+/**
+ * @swagger
+ * /api/v1/hospital/patient:
+ *   delete:
+ *     summary: Remove a patient from this hospital's care (Hospital auth required)
+ *     description: >
+ *       Deletes the patient's enrollment with the authenticated hospital. If the
+ *       patient is also enrolled with other hospitals, only this hospital's
+ *       patient conditions are removed; otherwise the whole patient is deleted.
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [patientId]
+ *             properties:
+ *               patientId:
+ *                 type: integer
+ *             example:
+ *               patientId: 12
+ *     responses:
+ *       200:
+ *         description: >
+ *           Patient removed. `data.deleted` is "patient" when the whole patient
+ *           was deleted, or "conditions" when only this hospital's enrollment was.
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Caller is not a hospital, or the patient isn't enrolled with it
+ *       404:
+ *         description: Patient not found
+ */
+hospitalRouter.delete("/patient", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user!; // guaranteed by middleware
+
+    if (user.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const { patientId } = HospitalDeletePatientSchema.parse(req.body);
+    const result = await HospitalDeletePatient(user.id, patientId);
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default hospitalRouter;

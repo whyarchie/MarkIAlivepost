@@ -1,10 +1,18 @@
 import express from "express";
-import { AdminLoginSchema, AdminSchema, AdminProgressJsonSchema } from "./admin.schema";
+import {
+  AdminLoginSchema,
+  AdminSchema,
+  AdminProgressJsonSchema,
+  AdminDeletePatientSchema,
+  AdminDeleteConditionSchema,
+} from "./admin.schema";
 import {
   AdminCreate,
   AdminLogin,
   AdminGetPatientByMobile,
   AdminUpdateProgressJsonField,
+  AdminDeletePatient,
+  AdminDeletePatientCondition,
 } from "./admin.service";
 import HashPassword from "../../utils/hashUtils";
 import { AuthUser, requireRole } from "../../middleware/Auth";
@@ -204,6 +212,100 @@ adminRouter.patch(
         followUpStatus
       );
       res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/patient:
+ *   delete:
+ *     summary: Delete an entire patient and all their data (admin only)
+ *     tags: [Admins]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [patientId]
+ *             properties:
+ *               patientId:
+ *                 type: integer
+ *             example:
+ *               patientId: 12
+ *     responses:
+ *       200:
+ *         description: Patient deleted
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Patient not found
+ */
+adminRouter.delete(
+  "/patient",
+  AuthUser,
+  requireRole("Admin"),
+  async (req, res, next) => {
+    try {
+      const { patientId } = AdminDeletePatientSchema.parse(req.body);
+      const deleted = await AdminDeletePatient(patientId);
+      res.status(200).json({ success: true, data: deleted });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/condition:
+ *   delete:
+ *     summary: Delete a single patient condition (admin only)
+ *     tags: [Admins]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [patientConditionId]
+ *             properties:
+ *               patientConditionId:
+ *                 type: integer
+ *             example:
+ *               patientConditionId: 34
+ *     responses:
+ *       200:
+ *         description: Patient condition deleted
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Patient condition not found
+ */
+adminRouter.delete(
+  "/condition",
+  AuthUser,
+  requireRole("Admin"),
+  async (req, res, next) => {
+    try {
+      const { patientConditionId } = AdminDeleteConditionSchema.parse(req.body);
+      const deleted = await AdminDeletePatientCondition(patientConditionId);
+      res.status(200).json({ success: true, data: deleted });
     } catch (error) {
       next(error);
     }

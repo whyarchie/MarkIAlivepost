@@ -6,6 +6,7 @@ import {
   PatientAnswer,
   PatientConditionSchema,
   patientLoginSchema,
+  patientDeleteSchema,
   patientSchema,
   PatientMedicineStatusSchema,
   type CreateprogressInput,
@@ -342,10 +343,32 @@ patientRouter.post('/loginmedicine', async (req, res, next) => {
  * @swagger
  * /api/v1/patient/delete:
  *   delete:
- *     summary: Delete a patient (Self)
+ *     summary: Delete the authenticated patient's own account (Self)
+ *     description: >
+ *       Permanently deletes the patient identified by the auth token. The caller
+ *       must re-confirm their identity by submitting the same mobile number and
+ *       date of birth used to log in; the request is rejected if they don't match
+ *       the token's account.
  *     tags: [Patients]
  *     security:
  *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mobileNumber
+ *               - dateOfBirth
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *                 example: "9876543210"
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "1990-01-01T00:00:00.000Z"
  *     responses:
  *       200:
  *         description: Patient deleted successfully
@@ -363,22 +386,32 @@ patientRouter.post('/loginmedicine', async (req, res, next) => {
  *                       type: integer
  *                     name:
  *                       type: string
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing/invalid token, or identity does not match the account
  *       403:
  *         description: Unauthorized — only patients can delete themselves
+ *       404:
+ *         description: Patient not found
  */
-//Patient Delete
+//Patient Delete (self) — re-verifies identity before deleting
 patientRouter.delete("/delete", AuthUser, async (req, res, next) => {
   try {
     const userInfo = req.user;
-    if (userInfo?.role == "Patient") {
-      const id = userInfo?.id;
-      const data = await DeletePatientService(id);
-      console.log(data);
-      res.status(200).json({
-        success: true,
-        data: data,
-      });
+
+    // Only a logged-in patient may delete their own account.
+    if (userInfo?.role !== "Patient") {
+      throw new AppError("Only patients can delete their own account", 403);
     }
+
+    const credentials = patientDeleteSchema.parse(req.body);
+    const data = await DeletePatientService(userInfo.id, credentials);
+
+    res.status(200).json({
+      success: true,
+      data: data,
+    });
   } catch (error) {
     next(error);
   }

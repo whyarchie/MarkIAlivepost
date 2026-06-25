@@ -44,5 +44,16 @@ export const HospitalLoginSchema = z.object({
     .min(8, "Password must be at least 8 characters")
     .max(50)
 })
+// A hospital removes a patient it treats. Depending on whether the patient is
+// also enrolled with other hospitals, this deletes either just this hospital's
+// patient conditions or the whole patient (decided in the service).
+export const HospitalDeletePatientSchema = z.object({
+  patientId: z.coerce
+    .number({ message: "patientId is required" })
+    .int("patientId must be an integer")
+    .positive("patientId must be a positive integer"),
+})
+
 export type HospitalCreate = z.infer<typeof HospitalSchema>
 export type HospitalLogin = z.infer<typeof HospitalLoginSchema>
+export type HospitalDeletePatient = z.infer<typeof HospitalDeletePatientSchema>

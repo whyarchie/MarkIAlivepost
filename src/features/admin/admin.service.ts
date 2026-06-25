@@ -2,7 +2,8 @@ import prisma from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
 import type { AdminCreate, AdminLogin } from "./admin.schema";
-import { GetFullPatientProfile } from "../patient/patient.service";
+import { GetFullPatientProfile, HardDeletePatient } from "../patient/patient.service";
+import { COMMON_ERROR, PATIENT_ERRORS } from "../../constants/messages";
 import bcrypt from "bcrypt";
 
 export async function AdminCreate(data: AdminCreate) {
@@ -93,4 +94,34 @@ export async function AdminUpdateProgressJsonField(
   });
 
   return updated;
+}
+
+// Admin can delete an entire patient (and all their conditions/history, which
+// cascade). We verify the patient exists first so we can return a clean 404.
+export async function AdminDeletePatient(patientId: number) {
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    select: { id: true, name: true },
+  });
+
+  if (!patient) {
+    throw new AppError(PATIENT_ERRORS.INVALID_PATIENT, 404);
+  }
+
+  return HardDeletePatient(patientId);
+}
+
+// Admin can also delete a single patient condition. Its progress entries and
+// allotted medicines are removed automatically via onDelete: Cascade.
+export async function AdminDeletePatientCondition(patientConditionId: number) {
+  const condition = await prisma.patientCondition.findUnique({
+    where: { id: patientConditionId },
+    select: { id: true },
+  });
+
+  if (!condition) {
+    throw new AppError(COMMON_ERROR.INVALID_CONDITION, 404);
+  }
+
+  return prisma.patientCondition.delete({ where: { id: patientConditionId } });
 }

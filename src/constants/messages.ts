@@ -29,6 +29,7 @@ export const COMMON_ERROR= {
   ID_NOT_FOUND: "ID not found / Passed",
   INVALID_HOSPITAL: "Invalid Hospital",
   INVALID_DOCTOR: "Invalid Doctor",
+  INVALID_CONDITION: "Patient condition not found",
   INVALID_ROLE: "Invalid Role",
   INVALID_FREQ: "Invalid Frequency",
   INVALID_NUMBER: "Invalid number",
