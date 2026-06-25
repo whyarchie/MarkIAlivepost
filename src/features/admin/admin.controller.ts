@@ -158,7 +158,7 @@ adminRouter.get(
  * @swagger
  * /api/v1/admin/progress/jsonfield:
  *   patch:
- *     summary: Set the jsonField on a patient progress entry (admin only)
+ *     summary: Set the jsonField (and optionally the follow-up status) on a patient progress entry (admin only)
  *     tags: [Admins]
  *     requestBody:
  *       required: true
@@ -171,9 +171,13 @@ adminRouter.get(
  *                 type: integer
  *               jsonField:
  *                 type: object
+ *               followUpStatus:
+ *                 type: string
+ *                 enum: [SUCCESSFUL, SCHEDULED, NOT_ANSWERING, FAILED, SUSPEND]
  *             example:
  *               progressId: 12
- *               jsonField: { vitals: { bp: "120/80", spo2: 97 }, notes: "stable" }
+ *               jsonField: { callSummary: "Patient stable", sugarLevel: 120 }
+ *               followUpStatus: "SUCCESSFUL"
  *     responses:
  *       200:
  *         description: Updated progress entry
@@ -192,8 +196,13 @@ adminRouter.patch(
   requireRole("Admin"),
   async (req, res, next) => {
     try {
-      const { progressId, jsonField } = AdminProgressJsonSchema.parse(req.body);
-      const updated = await AdminUpdateProgressJsonField(progressId, jsonField);
+      const { progressId, jsonField, followUpStatus } =
+        AdminProgressJsonSchema.parse(req.body);
+      const updated = await AdminUpdateProgressJsonField(
+        progressId,
+        jsonField,
+        followUpStatus
+      );
       res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);

@@ -58,10 +58,12 @@ export async function AdminGetPatientByMobile(mobileNumber: string) {
   return GetFullPatientProfile({ mobileNumber });
 }
 
-// Write structured clinical data into a single PatientProgress.jsonField.
+// Write structured clinical data into a single PatientProgress.jsonField,
+// optionally updating the follow-up status in the same write.
 export async function AdminUpdateProgressJsonField(
   progressId: number,
-  jsonField: unknown
+  jsonField: unknown,
+  followUpStatus?: string
 ) {
   const existing = await prisma.patientProgress.findUnique({
     where: { id: progressId },
@@ -74,7 +76,10 @@ export async function AdminUpdateProgressJsonField(
 
   const updated = await prisma.patientProgress.update({
     where: { id: progressId },
-    data: { jsonField: jsonField as any },
+    data: {
+      jsonField: jsonField as any,
+      ...(followUpStatus ? { followUpStatus: followUpStatus as any } : {}),
+    },
     select: {
       id: true,
       patientConditionId: true,

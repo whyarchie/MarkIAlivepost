@@ -42,12 +42,20 @@ const jsonObjectOrArray = z.union(
   { message: "jsonField must be a JSON object or array" }
 );
 
+// Mirrors the FollowUpStatus enum in the Prisma schema.
+export const FollowUpStatusEnum = z.enum(
+  ["SUCCESSFUL", "SCHEDULED", "NOT_ANSWERING", "FAILED", "SUSPEND"],
+  { message: "Invalid followUpStatus" }
+);
+
 export const AdminProgressJsonSchema = z.object({
   progressId: z.coerce
     .number({ message: "progressId is required" })
     .int("progressId must be an integer")
     .positive("progressId must be a positive integer"),
   jsonField: jsonObjectOrArray,
+  // Optional: admins can also update the follow-up status in the same request.
+  followUpStatus: FollowUpStatusEnum.optional(),
 });
 
 export type AdminCreate = z.infer<typeof AdminSchema>;
