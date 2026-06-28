@@ -22,7 +22,7 @@ export async function CreateDoctor(data: DoctorSchemaCreate) {
 export async function GetDoctorByHostpialId(id: number) {
   const result = await prisma.doctor.findMany({
     where: {
-      id,
+      hospitalId: id,
     },
     select: {
       id: true,

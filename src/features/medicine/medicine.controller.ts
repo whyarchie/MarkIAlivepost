@@ -1,6 +1,6 @@
 import express from "express";
 import { MedicineSchema, type MedicineCreateSchema } from "./medicine.schema";
-import { CreateMedicine, MedicineDetail, MedicineSearch } from "./medicine.service";
+import { CreateMedicine, MedicineDetail, MedicineSearch, GetAllMedicines } from "./medicine.service";
 
 const medicineRouter = express.Router();
 /**
@@ -84,6 +84,29 @@ medicineRouter.get("/search", async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: medicine,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/medicine/all:
+ *   get:
+ *     summary: Get all medicines
+ *     tags: [Medicines]
+ *     responses:
+ *       200:
+ *         description: List of all medicines
+ */
+//Get all medicines
+medicineRouter.get("/all", async (req, res, next) => {
+  try {
+    const medicines = await GetAllMedicines();
+    res.status(200).json({
+      success: true,
+      data: medicines,
     });
   } catch (error) {
     next(error);

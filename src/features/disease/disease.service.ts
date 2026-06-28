@@ -14,6 +14,18 @@ export async function CreateDisease(data: DiseaseCreateSchema) {
   return disease;
 }
 
+export async function GetAllDiseases() {
+  try {
+    const diseases = await prisma.disease.findMany({
+      orderBy: { name: "asc" },
+    });
+
+    return diseases;
+  } catch (error) {
+    throw new AppError("Unexpected error while fetching diseases", 500);
+  }
+}
+
 export async function DiseaseSearchService(value: string) {
   try {
     const diseases = await prisma.disease.findMany({

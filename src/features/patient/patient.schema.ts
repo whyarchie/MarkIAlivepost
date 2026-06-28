@@ -149,8 +149,7 @@ export const PatientConditionSchema = z
     doctorId: z
       .number()
       .int()
-      .positive({ message: COMMON_ERROR.INVALID_DOCTOR })
-      .optional(),
+      .positive({ message: COMMON_ERROR.INVALID_DOCTOR }),
     status: z.enum(["STABLE", "CRITICAL", "RECOVERED"]),
 
     startDate: z.coerce.date({

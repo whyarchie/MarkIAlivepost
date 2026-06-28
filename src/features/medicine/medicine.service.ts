@@ -14,6 +14,13 @@ export async function CreateMedicine(data: MedicineCreateSchema) {
   }
 }
 
+export async function GetAllMedicines() {
+  const medicines = await prisma.medicine.findMany({
+    orderBy: { brandName: "asc" },
+  });
+  return medicines;
+}
+
 export async function MedicineSearch(value: string) {
   const medicine = await prisma.medicine.findMany({
     where: {

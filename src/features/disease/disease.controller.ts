@@ -1,6 +1,6 @@
 import express from "express";
 import { diseaseSchema, type DiseaseCreateSchema } from "./disease.schema";
-import { CreateDisease, DiseaseDataByIdService, DiseaseSearchService } from "./disease.service";
+import { CreateDisease, DiseaseDataByIdService, DiseaseSearchService, GetAllDiseases } from "./disease.service";
 
 const diseaseRouter = express.Router();
 
@@ -73,6 +73,27 @@ diseaseRouter.get("/search", async (req, res, next) => {
   try {
     const value = req.query.value as string;
     const output = await DiseaseSearchService(value);
+    res.status(200).json({
+      success: true,
+      data: output,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+/**
+ * @swagger
+ * /api/v1/disease/all:
+ *   get:
+ *     summary: Get all diseases
+ *     tags: [Diseases]
+ *     responses:
+ *       200:
+ *         description: List of all diseases
+ */
+diseaseRouter.get("/all", async (req, res, next) => {
+  try {
+    const output = await GetAllDiseases();
     res.status(200).json({
       success: true,
       data: output,

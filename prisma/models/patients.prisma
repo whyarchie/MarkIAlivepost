@@ -52,8 +52,8 @@ model PatientCondition {
   endDate         DateTime?
   hospitalId      Int
   hospital        Hospital               @relation(fields: [hospitalId], references: [id])
-  doctorId        Int?
-  doctor          Doctor?                @relation(fields: [doctorId], references: [id])
+  doctorId        Int
+  doctor          Doctor                 @relation(fields: [doctorId], references: [id])
   medicineAlloted MedicineAllotted[]
   patientProgress PatientProgress[]
   createdAt       DateTime               @default(now())
