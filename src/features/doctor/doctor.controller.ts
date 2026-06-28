@@ -64,12 +64,14 @@ doctorRouter.post("/create", AuthUser, async (req, res, next) => {
   }
 });
 
-//get all doctor by id
-doctorRouter.get("/all", async (req, res, next) => {
+//get all doctors for the authenticated hospital
+doctorRouter.get("/all", AuthUser, async (req, res, next) => {
   try {
-    const id = req.query.id as string;
-    const safeId = Number(id);
-    const result = await GetDoctorByHostpialId(safeId)
+    const user = req.user!
+    if (user.role != "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403)
+    }
+    const result = await GetDoctorByHostpialId(user.id)
     res.status(200).json({
       success: true,
       data: result
