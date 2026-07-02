@@ -1,0 +1,27 @@
+model Order {
+    id              Int       @id @default(autoincrement())
+    razorpayOrderId String    @unique @map("razorpay_order_id")
+    amount          Int // paise
+    currency        String    @default("INR")
+    receipt         String?
+    status          String    @default("created")
+    createdAt       DateTime  @default(now()) @map("created_at")
+    payments        Payment[]
+    hospital        Hospital  @relation(fields: [hospitalId], references: [id])
+    hospitalId      Int
+
+    @@map("orders")
+}
+
+model Payment {
+    id                Int      @id @default(autoincrement())
+    razorpayPaymentId String   @unique @map("razorpay_payment_id")
+    razorpayOrderId   String   @map("razorpay_order_id")
+    razorpaySignature String?  @map("razorpay_signature")
+    amount            Int
+    status            String
+    createdAt         DateTime @default(now()) @map("created_at")
+    order             Order    @relation(fields: [razorpayOrderId], references: [razorpayOrderId])
+
+    @@map("payments")
+}

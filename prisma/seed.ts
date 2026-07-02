@@ -91,6 +91,8 @@ async function main() {
             create: {
                 name: 'Apollo Hospital Delhi',
                 helplineNumber: '011-26825000',
+                contactNumber: '9810012345',
+                email: 'billing@apollodelhi.com',
                 address: 'Sarita Vihar, Delhi Mathura Road, New Delhi - 110076',
                 userId: 'apollo_delhi',
                 password: hashedPassword,
@@ -102,6 +104,8 @@ async function main() {
             create: {
                 name: 'AIIMS New Delhi',
                 helplineNumber: '011-26588500',
+                contactNumber: '9810026588',
+                email: 'billing@aiims.edu',
                 address: 'Sri Aurobindo Marg, Ansari Nagar, New Delhi - 110029',
                 userId: 'aiims_delhi',
                 password: hashedPassword,
@@ -113,6 +117,8 @@ async function main() {
             create: {
                 name: 'Fortis Memorial Research Institute',
                 helplineNumber: '0124-4962200',
+                contactNumber: '9810049622',
+                email: 'billing@fortishealthcare.com',
                 address: 'Sector 44, Gurugram, Haryana - 122002',
                 userId: 'fortis_gurgaon',
                 password: hashedPassword,

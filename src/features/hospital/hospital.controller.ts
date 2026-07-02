@@ -1,7 +1,7 @@
 import express from "express";
 import { AuthUser } from "../../middleware/Auth";
-import { HospitalLoginSchema, HospitalSchema, HospitalDeletePatientSchema } from "./hospital.schema";
-import { GetHospitalById, GetPatientMedicineForHospital, HospitalCreate, HospitalDeletePatient, HospitalLogin, SearchHospital } from "./hospital.service";
+import { HospitalLoginSchema, HospitalSchema, HospitalDeletePatientSchema, HospitalVerifyPaymentSchema } from "./hospital.schema";
+import { GetHospitalById, GetPatientMedicineForHospital, HospitalAddBalance, HospitalCreate, HospitalDeletePatient, HospitalLogin, HospitalPaymentWebhook, HospitalVerifyPayment, SearchHospital } from "./hospital.service";
 import HashPassword from "../../utils/hashUtils";
 import { success } from "zod";
 import { AppError } from "../../utils/AppError";
@@ -33,6 +33,8 @@ const hospitalRouter = express.Router();
  *                 type: string
  *               helplineNumber:
  *                 type: string
+ *               email:
+ *                 type: string
  *               address:
  *                 type: string
  *               userId:
@@ -41,7 +43,8 @@ const hospitalRouter = express.Router();
  *                 type: string
  *             example:
  *               name: "Apollo Hospital Delhi"
- *               helplineNumber: "011-26825000"
+ *               helplineNumber: "01126825000"
+ *               email: "billing@apollodelhi.com"
  *               address: "Sarita Vihar, Delhi Mathura Road, New Delhi - 110076"
  *               userId: "apollo_delhi"
  *               password: "Hospital@123"
@@ -262,6 +265,141 @@ hospitalRouter.delete("/patient", AuthUser, async (req, res, next) => {
     const result = await HospitalDeletePatient(user.id, patientId);
 
     res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+hospitalRouter.post("/order", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user!; // guaranteed by middleware
+
+    if (user.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const amount = Number(req.body.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError("Invalid amount", 400);
+    }
+
+    const result = await HospitalAddBalance(user.id, amount);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/hospital/verify:
+ *   post:
+ *     summary: Verify a Razorpay payment and credit the hospital balance (Hospital auth required)
+ *     description: >
+ *       Called after the Razorpay checkout completes. Verifies the payment
+ *       signature, marks the order as paid and credits the hospital's balance.
+ *       Idempotent — verifying the same payment again does not credit twice.
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [razorpay_order_id, razorpay_payment_id, razorpay_signature]
+ *             properties:
+ *               razorpay_order_id:
+ *                 type: string
+ *               razorpay_payment_id:
+ *                 type: string
+ *               razorpay_signature:
+ *                 type: string
+ *             example:
+ *               razorpay_order_id: "order_PqR3sT4uV5wX6y"
+ *               razorpay_payment_id: "pay_PqR3sT4uV5wX6y"
+ *               razorpay_signature: "9ef4dffbfd84f1318f6739a3ce19f9d85851857ae648f114332d8401e0949a3d"
+ *     responses:
+ *       200:
+ *         description: Payment verified; order marked paid and balance credited
+ *       400:
+ *         description: Validation error or invalid payment signature
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Caller is not a hospital, or the order isn't theirs
+ *       404:
+ *         description: Order not found
+ */
+hospitalRouter.post("/verify", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user!; // guaranteed by middleware
+
+    if (user.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const data = HospitalVerifyPaymentSchema.parse(req.body);
+    const result = await HospitalVerifyPayment(user.id, data);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/hospital/webhook:
+ *   post:
+ *     summary: Razorpay payment webhook (server-to-server, no user auth)
+ *     description: >
+ *       Endpoint configured in the Razorpay dashboard. Authenticated by the
+ *       `X-Razorpay-Signature` header (HMAC-SHA256 of the raw body with the
+ *       webhook secret), not by a user session. On a `payment.captured` event
+ *       the matching order is marked paid and the hospital balance is credited.
+ *       Idempotent; always returns 200 on a valid signature so Razorpay stops
+ *       retrying.
+ *     tags: [Hospitals]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Webhook processed (or acknowledged and ignored)
+ *       400:
+ *         description: Missing body or invalid webhook signature
+ */
+hospitalRouter.post("/webhook", async (req, res, next) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"];
+    const rawBody = req.rawBody;
+
+    if (!rawBody) {
+      throw new AppError("Missing request body", 400);
+    }
+
+    const result = await HospitalPaymentWebhook(
+      rawBody,
+      typeof signature === "string" ? signature : "",
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (error) {
     next(error);
   }

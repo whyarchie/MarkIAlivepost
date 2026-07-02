@@ -12,6 +12,18 @@ export const HospitalSchema = z.object({
     .string()
     .regex(/^[0-9]{10,15}$/, "Helpline number must be 10–15 digits"),
 
+  // Personal/billing contact number used to prefill the Razorpay checkout.
+  // Required, same 10–15 digit format as the helpline.
+  contactNumber: z
+    .string()
+    .regex(/^[0-9]{10,15}$/, "Contact number must be 10–15 digits"),
+
+  email: z
+    .string()
+    .email("Invalid email address")
+    .max(255)
+    .trim(),
+
   address: z
     .string()
     .min(10, "Address must be at least 10 characters")
@@ -54,6 +66,15 @@ export const HospitalDeletePatientSchema = z.object({
     .positive("patientId must be a positive integer"),
 })
 
+// Fields returned by the Razorpay checkout handler, sent back so the server can
+// verify the payment signature and credit the hospital's balance.
+export const HospitalVerifyPaymentSchema = z.object({
+  razorpay_order_id: z.string().min(1, "razorpay_order_id is required"),
+  razorpay_payment_id: z.string().min(1, "razorpay_payment_id is required"),
+  razorpay_signature: z.string().min(1, "razorpay_signature is required"),
+})
+
 export type HospitalCreate = z.infer<typeof HospitalSchema>
 export type HospitalLogin = z.infer<typeof HospitalLoginSchema>
 export type HospitalDeletePatient = z.infer<typeof HospitalDeletePatientSchema>
+export type HospitalVerifyPayment = z.infer<typeof HospitalVerifyPaymentSchema>

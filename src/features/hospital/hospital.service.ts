@@ -1,32 +1,38 @@
 
 
+import crypto from "node:crypto";
 import prisma from "../../config/prisma";
 import { COMMON_ERROR, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
+import { getRazorpay } from "../../utils/razorpay";
 import { HardDeletePatient } from "../patient/patient.service";
-import type { HospitalCreate, HospitalLogin } from "./hospital.schema";
+import type { HospitalCreate, HospitalLogin, HospitalVerifyPayment } from "./hospital.schema";
 import bcrypt from "bcrypt"
-export async function HospitalCreate(data:HospitalCreate){
-    const hospital = await prisma.hospital.create({
-        data:{
-            name: data.name,
-            helplineNumber: data.helplineNumber,
-            address: data.address,
-            userId: data.userId,
-            password: data.password,
-        },
-        select:{
-            id: true,
-            name: true,
-            helplineNumber:true,
-            address:true,
-            userId:true,
-            createdAt: true,
+export async function HospitalCreate(data: HospitalCreate) {
+  const hospital = await prisma.hospital.create({
+    data: {
+      name: data.name,
+      helplineNumber: data.helplineNumber,
+      contactNumber: data.contactNumber,
+      email: data.email,
+      address: data.address,
+      userId: data.userId,
+      password: data.password,
+    },
+    select: {
+      id: true,
+      name: true,
+      helplineNumber: true,
+      contactNumber: true,
+      email: true,
+      address: true,
+      userId: true,
+      createdAt: true,
       updatedAt: true
-        }
-    })
-    return hospital;
+    }
+  })
+  return hospital;
 }
 export async function HospitalLogin(data: HospitalLogin) {
   const hospital = await prisma.hospital.findUnique({
@@ -47,45 +53,45 @@ export async function HospitalLogin(data: HospitalLogin) {
 
   const user = {
     id: hospital.id,
-    role: "Hospital" 
+    role: "Hospital"
   }
 
   const token = jwtTokenSigner(user)
-  const {password, ...safeData}= hospital
+  const { password, ...safeData } = hospital
 
-  return {safeData, token}
+  return { safeData, token }
 }
 
 //hospital search or debouncing 
-export async function SearchHospital(name:string){
+export async function SearchHospital(name: string) {
   const hospital = await prisma.hospital.findMany({
-    where:{
-      name:{
-        contains:name,
+    where: {
+      name: {
+        contains: name,
         mode: "insensitive"
       }
     },
-   select:{
-    id: true, 
-    name: true,
-    helplineNumber: true,
-    address: true,
-   }
+    select: {
+      id: true,
+      name: true,
+      helplineNumber: true,
+      address: true,
+    }
   })
   return hospital
 }
 
 //get hospital by id 
-export async function GetHospitalById(id:number){
+export async function GetHospitalById(id: number) {
   const hospital = await prisma.hospital.findUnique({
-    where:{
+    where: {
       id
     },
-    select:{
-    id: true, 
-    name: true,
-    helplineNumber: true,
-    address: true,
+    select: {
+      id: true,
+      name: true,
+      helplineNumber: true,
+      address: true,
 
     }
   })
@@ -93,7 +99,7 @@ export async function GetHospitalById(id:number){
 }
 
 // get medicines of a patient for a hospital
-export async function GetPatientMedicineForHospital(user: { id: number; role: string },patientId: number) {
+export async function GetPatientMedicineForHospital(user: { id: number; role: string }, patientId: number) {
   if (user?.role !== "Hospital") {
     throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
   }
@@ -156,3 +162,226 @@ export async function HospitalDeletePatient(hospitalId: number, patientId: numbe
 
   return { deleted: "patient" as const, patient };
 }
+
+export async function HospitalAddBalance(hospitalId: number, amount: number) {
+  if (amount <= 0) {
+    throw new AppError("Amount must be greater than zero", 400);
+  }
+  const hospital = await prisma.hospital.findUnique({
+    where: { id: hospitalId },
+  });
+
+  if (!hospital) {
+    throw new AppError("Hospital not found", 404);
+  }
+
+  // Razorpay works in the smallest currency unit (paise); the Order.amount
+  // column is also stored in paise, so keep a single value for both.
+  const amountInPaise = Math.round(amount * 100);
+
+  const options = {
+    amount: amountInPaise,
+    currency: "INR",
+    receipt: `order_rcptid_${hospitalId}_${Date.now()}`,
+    notes: {
+      hospitalId: hospitalId.toString(),
+    },
+  };
+
+  const order = await getRazorpay().orders.create(options);
+
+  await prisma.order.create({
+    data: {
+      razorpayOrderId: order.id,
+      hospitalId: hospitalId,
+      amount: amountInPaise,
+      currency: options.currency,
+      receipt: options.receipt,
+      status: order.status ?? "created",
+    },
+  });
+
+  // Prefill for the Razorpay Checkout modal, sourced from the DB so the payer
+  // is never asked for contact/email. Both columns are required, so they are
+  // always present. Razorpay's contact field wants digits only, so strip any
+  // separators (older seed data may contain dashes).
+  return {
+    order,
+    prefill: {
+      name: hospital.name,
+      email: hospital.email,
+      contact: hospital.contactNumber.replace(/\D/g, ""),
+    },
+  };
+}
+
+// Verifies a completed Razorpay checkout and, on success, marks the order paid
+// and credits the hospital's balance. Amounts are handled in paise throughout
+// (Order.amount and Hospital.balance are both stored in paise).
+export async function HospitalVerifyPayment(
+  hospitalId: number,
+  data: HospitalVerifyPayment,
+) {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = data;
+
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    throw new AppError("Payment gateway is not configured", 500);
+  }
+
+  // Razorpay checkout signature = HMAC_SHA256(order_id + "|" + payment_id, key_secret).
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+    .digest("hex");
+
+  const signatureIsValid =
+    expectedSignature.length === razorpay_signature.length &&
+    crypto.timingSafeEqual(
+      Buffer.from(expectedSignature),
+      Buffer.from(razorpay_signature),
+    );
+
+  if (!signatureIsValid) {
+    throw new AppError("Invalid payment signature", 400);
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { razorpayOrderId: razorpay_order_id },
+  });
+
+  if (!order) {
+    throw new AppError("Order not found", 404);
+  }
+
+  // A hospital may only verify payments against its own orders.
+  if (order.hospitalId !== hospitalId) {
+    throw new AppError("This order does not belong to your hospital", 403);
+  }
+
+  return settlePayment({
+    order,
+    razorpayPaymentId: razorpay_payment_id,
+    razorpaySignature: razorpay_signature,
+    status: "captured",
+  });
+}
+
+// Idempotently records a successful payment, marks its order paid and credits
+// the hospital's balance in a single transaction. Shared by the client-side
+// /verify flow and the Razorpay /webhook. Amounts are in paise.
+async function settlePayment(params: {
+  order: { razorpayOrderId: string; hospitalId: number; amount: number };
+  razorpayPaymentId: string;
+  razorpaySignature: string | null;
+  status: string;
+}) {
+  const { order, razorpayPaymentId, razorpaySignature, status } = params;
+
+  // If we've already recorded this payment, don't credit twice.
+  const existingPayment = await prisma.payment.findUnique({
+    where: { razorpayPaymentId },
+  });
+
+  if (existingPayment) {
+    return {
+      alreadyProcessed: true,
+      orderId: order.razorpayOrderId,
+      paymentId: existingPayment.razorpayPaymentId,
+    };
+  }
+
+  // Payment.razorpayPaymentId is unique, so concurrent duplicates fail on insert
+  // rather than double-crediting the balance.
+  const [payment, , updatedHospital] = await prisma.$transaction([
+    prisma.payment.create({
+      data: {
+        razorpayPaymentId,
+        razorpayOrderId: order.razorpayOrderId,
+        razorpaySignature,
+        amount: order.amount,
+        status,
+      },
+    }),
+    prisma.order.update({
+      where: { razorpayOrderId: order.razorpayOrderId },
+      data: { status: "paid" },
+    }),
+    prisma.hospital.update({
+      where: { id: order.hospitalId },
+      data: { balance: { increment: order.amount } },
+    }),
+  ]);
+
+  return {
+    alreadyProcessed: false,
+    orderId: order.razorpayOrderId,
+    paymentId: payment.razorpayPaymentId,
+    balance: updatedHospital.balance,
+  };
+}
+
+// Handles Razorpay server-to-server webhooks. Verifies the signature over the
+// raw body using the webhook secret, then credits the hospital on a captured
+// payment. Returns a summary; the caller should always respond 200 on a valid
+// signature so Razorpay stops retrying.
+export async function HospitalPaymentWebhook(rawBody: Buffer, signature: string) {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new AppError("Payment webhook is not configured", 500);
+  }
+
+  // Razorpay signs the raw request body with the webhook secret.
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+
+  const signatureIsValid =
+    !!signature &&
+    expectedSignature.length === signature.length &&
+    crypto.timingSafeEqual(
+      Buffer.from(expectedSignature),
+      Buffer.from(signature),
+    );
+
+  if (!signatureIsValid) {
+    throw new AppError("Invalid webhook signature", 400);
+  }
+
+  const event = JSON.parse(rawBody.toString());
+
+  // We only act on captured payments; acknowledge anything else so Razorpay
+  // stops retrying.
+  if (event?.event !== "payment.captured") {
+    return { handled: false, event: event?.event ?? "unknown" };
+  }
+
+  const entity = event?.payload?.payment?.entity;
+  const razorpayPaymentId: string | undefined = entity?.id;
+  const razorpayOrderId: string | undefined = entity?.order_id;
+
+  if (!razorpayPaymentId || !razorpayOrderId) {
+    throw new AppError("Malformed webhook payload", 400);
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { razorpayOrderId },
+  });
+
+  // Unknown order (e.g. created outside this system). Acknowledge to stop retries.
+  if (!order) {
+    return { handled: false, reason: "order not found", orderId: razorpayOrderId };
+  }
+
+  const result = await settlePayment({
+    order,
+    razorpayPaymentId,
+    razorpaySignature: null,
+    status: entity?.status ?? "captured",
+  });
+
+  return { handled: true, ...result };
+}
+
+

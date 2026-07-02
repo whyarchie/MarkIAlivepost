@@ -28,7 +28,13 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json())
+app.use(express.json({
+  // Stash the raw body so webhook handlers can verify signatures over the exact
+  // bytes Razorpay signed (re-stringifying the parsed JSON is not byte-stable).
+  verify: (req, _res, buf) => {
+    (req as express.Request).rawBody = buf;
+  },
+}))
 app.use(cookieParser())
 
 // Serve static files (notification test page, service worker, etc.)
