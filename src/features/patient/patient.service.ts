@@ -172,21 +172,84 @@ export async function MedicalHistoryCreateService(data: MedicalHistoryCreate) {
     throw error;
   }
 }
+// Whole days a patient is enrolled for, counting both the start and the end
+// date (1 Jan → 10 Jan = 10 days). Open-ended enrollments (no end date) are
+// charged for a single day up front.
+function enrollmentDays(startDate: Date, endDate?: Date | null) {
+  if (!endDate) return 1;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  return Math.max(
+    1,
+    Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY) + 1,
+  );
+}
+
 export async function PatientConditionCreate(data: PatientConditionInput) {
+  // Enrolling a patient costs the hospital perDayPatientCost (rupees) for each
+  // enrolled day, deducted from its wallet. The wallet balance is in paise.
+  const hospital = await prisma.hospital.findUnique({
+    where: { id: data.hospitalId },
+    select: { perDayPatientCost: true },
+  });
+
+  if (!hospital) {
+    throw new AppError(COMMON_ERROR.INVALID_HOSPITAL, 404);
+  }
+
+  const days = enrollmentDays(data.startDate, data.endDate);
+  const totalRupees = days * hospital.perDayPatientCost;
+  const totalPaise = totalRupees * 100;
+  // Only half of the quoted enrollment cost is deducted up front.
+  const chargePaise = totalPaise / 2;
+
   try {
-    const patientCondition = await prisma.patientCondition.create({
-      data: {
-        patientId: data.patientId,
-        hospitalId: data.hospitalId,
-        doctorId: data.doctorId,
-        diseaseId: data.diseaseId,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        status: data.status,
-      },
+    return await prisma.$transaction(async (tx) => {
+      // Conditional decrement: only matches while balance >= charge, so
+      // concurrent enrollments can't drive the wallet negative.
+      const charged = await tx.hospital.updateMany({
+        where: { id: data.hospitalId, balance: { gte: chargePaise } },
+        data: { balance: { decrement: chargePaise } },
+      });
+
+      if (charged.count === 0) {
+        throw new AppError(
+          `Insufficient wallet balance: enrolling this patient for ${days} day(s) costs ₹${totalRupees}, of which half (₹${chargePaise / 100}) is deducted up front. Please top up the wallet and try again.`,
+          402,
+        );
+      }
+
+      const patientCondition = await tx.patientCondition.create({
+        data: {
+          patientId: data.patientId,
+          hospitalId: data.hospitalId,
+          doctorId: data.doctorId,
+          diseaseId: data.diseaseId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          status: data.status,
+        },
+      });
+
+      const wallet = await tx.hospital.findUnique({
+        where: { id: data.hospitalId },
+        select: { balance: true },
+      });
+
+      return {
+        ...patientCondition,
+        billing: {
+          days,
+          perDayPatientCost: hospital.perDayPatientCost, // rupees/day
+          totalCost: totalPaise, // full enrollment cost, paise
+          charged: chargePaise, // half of totalCost, deducted now (paise)
+          balance: wallet?.balance ?? 0, // paise
+        },
+      };
     });
-    return patientCondition;
   } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
     if (typeof error === "object" && error !== null && "code" in error) {
       const prismaError = error as {
         code?: string;

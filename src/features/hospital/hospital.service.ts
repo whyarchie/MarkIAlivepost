@@ -7,7 +7,7 @@ import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
 import { getRazorpay } from "../../utils/razorpay";
 import { HardDeletePatient } from "../patient/patient.service";
-import type { HospitalCreate, HospitalLogin, HospitalVerifyPayment } from "./hospital.schema";
+import type { HospitalCreate, HospitalLogin, HospitalUpdate, HospitalVerifyPayment } from "./hospital.schema";
 import bcrypt from "bcrypt"
 export async function HospitalCreate(data: HospitalCreate) {
   const hospital = await prisma.hospital.create({
@@ -19,6 +19,10 @@ export async function HospitalCreate(data: HospitalCreate) {
       address: data.address,
       userId: data.userId,
       password: data.password,
+      // Rupees per enrolled patient per day; omitted → DB default (₹100/day).
+      ...(data.perDayPatientCost !== undefined
+        ? { perDayPatientCost: data.perDayPatientCost }
+        : {}),
     },
     select: {
       id: true,
@@ -28,6 +32,7 @@ export async function HospitalCreate(data: HospitalCreate) {
       email: true,
       address: true,
       userId: true,
+      perDayPatientCost: true,
       createdAt: true,
       updatedAt: true
     }
@@ -62,7 +67,7 @@ export async function HospitalLogin(data: HospitalLogin) {
   return { safeData, token }
 }
 
-//hospital search or debouncing 
+//hospital search or debouncing
 export async function SearchHospital(name: string) {
   const hospital = await prisma.hospital.findMany({
     where: {
@@ -76,12 +81,13 @@ export async function SearchHospital(name: string) {
       name: true,
       helplineNumber: true,
       address: true,
+      perDayPatientCost: true,
     }
   })
   return hospital
 }
 
-//get hospital by id 
+//get hospital by id
 export async function GetHospitalById(id: number) {
   const hospital = await prisma.hospital.findUnique({
     where: {
@@ -92,10 +98,79 @@ export async function GetHospitalById(id: number) {
       name: true,
       helplineNumber: true,
       address: true,
-
+      perDayPatientCost: true,
     }
   })
   return hospital;
+}
+
+// Everything about a hospital except its password. Used for the hospital's own
+// "/me" view and the admin management screens, so it includes the wallet
+// balance (paise) and per-day patient cost (rupees).
+const HOSPITAL_PROFILE_SELECT = {
+  id: true,
+  name: true,
+  helplineNumber: true,
+  contactNumber: true,
+  email: true,
+  address: true,
+  userId: true,
+  perDayPatientCost: true,
+  balance: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+// A hospital's own profile (wallet balance + pricing included).
+export async function GetHospitalProfile(hospitalId: number) {
+  const hospital = await prisma.hospital.findUnique({
+    where: { id: hospitalId },
+    select: HOSPITAL_PROFILE_SELECT,
+  });
+
+  if (!hospital) {
+    throw new AppError("Hospital not found", 404);
+  }
+
+  return hospital;
+}
+
+// Full hospital list for the admin dashboard.
+export async function GetAllHospitals() {
+  return prisma.hospital.findMany({
+    select: HOSPITAL_PROFILE_SELECT,
+    orderBy: { name: "asc" },
+  });
+}
+
+// Admin updates a hospital's info/pricing. Only the fields present in the
+// payload are written; the password (when provided) arrives already hashed.
+export async function HospitalUpdate(data: HospitalUpdate) {
+  const { hospitalId, ...fields } = data;
+
+  const updates = Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined),
+  );
+
+  try {
+    return await prisma.hospital.update({
+      where: { id: hospitalId },
+      data: updates,
+      select: HOSPITAL_PROFILE_SELECT,
+    });
+  } catch (error: any) {
+    if (error?.code === "P2025") {
+      throw new AppError("Hospital not found", 404);
+    }
+    // Unique constraint (userId / helplineNumber) already taken.
+    if (error?.code === "P2002") {
+      throw new AppError(
+        "Another hospital already uses this userId or helpline number",
+        409,
+      );
+    }
+    throw error;
+  }
 }
 
 // get medicines of a patient for a hospital

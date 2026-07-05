@@ -42,8 +42,43 @@ export const HospitalSchema = z.object({
     .max(50)
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[0-9]/, "Password must contain at least one number"),
+
+  // Amount (in rupees) charged to the hospital's wallet for each day a patient
+  // is enrolled. Optional on create — the DB defaults it to ₹100/day.
+  perDayPatientCost: z.coerce
+    .number()
+    .int("Per-day patient cost must be a whole number")
+    .positive("Per-day patient cost must be greater than zero")
+    .max(1_000_000, "Per-day patient cost is too large")
+    .optional(),
 })
+
+// Admin updates a hospital's profile/pricing. hospitalId selects the hospital;
+// every other field is optional — only the ones provided are changed.
+export const HospitalUpdateSchema = z
+  .object({
+    hospitalId: z.coerce
+      .number({ message: "hospitalId is required" })
+      .int("hospitalId must be an integer")
+      .positive("hospitalId must be a positive integer"),
+
+    name: HospitalSchema.shape.name.optional(),
+    helplineNumber: HospitalSchema.shape.helplineNumber.optional(),
+    contactNumber: HospitalSchema.shape.contactNumber.optional(),
+    email: HospitalSchema.shape.email.optional(),
+    address: HospitalSchema.shape.address.optional(),
+    userId: HospitalSchema.shape.userId.optional(),
+    password: HospitalSchema.shape.password.optional(),
+    perDayPatientCost: HospitalSchema.shape.perDayPatientCost,
+  })
+  .refine(
+    (data) =>
+      Object.entries(data).some(
+        ([key, value]) => key !== "hospitalId" && value !== undefined,
+      ),
+    { message: "Provide at least one field to update" },
+  )
 
 export const HospitalLoginSchema = z.object({
     userId: z
@@ -75,6 +110,7 @@ export const HospitalVerifyPaymentSchema = z.object({
 })
 
 export type HospitalCreate = z.infer<typeof HospitalSchema>
+export type HospitalUpdate = z.infer<typeof HospitalUpdateSchema>
 export type HospitalLogin = z.infer<typeof HospitalLoginSchema>
 export type HospitalDeletePatient = z.infer<typeof HospitalDeletePatientSchema>
 export type HospitalVerifyPayment = z.infer<typeof HospitalVerifyPaymentSchema>

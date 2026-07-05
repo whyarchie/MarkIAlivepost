@@ -1,7 +1,7 @@
 import express from "express";
-import { AuthUser } from "../../middleware/Auth";
-import { HospitalLoginSchema, HospitalSchema, HospitalDeletePatientSchema, HospitalVerifyPaymentSchema } from "./hospital.schema";
-import { GetHospitalById, GetPatientMedicineForHospital, HospitalAddBalance, HospitalCreate, HospitalDeletePatient, HospitalLogin, HospitalPaymentWebhook, HospitalVerifyPayment, SearchHospital } from "./hospital.service";
+import { AuthUser, requireRole } from "../../middleware/Auth";
+import { HospitalLoginSchema, HospitalSchema, HospitalUpdateSchema, HospitalDeletePatientSchema, HospitalVerifyPaymentSchema } from "./hospital.schema";
+import { GetAllHospitals, GetHospitalById, GetHospitalProfile, GetPatientMedicineForHospital, HospitalAddBalance, HospitalCreate, HospitalDeletePatient, HospitalLogin, HospitalPaymentWebhook, HospitalUpdate, HospitalVerifyPayment, SearchHospital } from "./hospital.service";
 import HashPassword from "../../utils/hashUtils";
 import { success } from "zod";
 import { AppError } from "../../utils/AppError";
@@ -33,6 +33,8 @@ const hospitalRouter = express.Router();
  *                 type: string
  *               helplineNumber:
  *                 type: string
+ *               contactNumber:
+ *                 type: string
  *               email:
  *                 type: string
  *               address:
@@ -41,13 +43,18 @@ const hospitalRouter = express.Router();
  *                 type: string
  *               password:
  *                 type: string
+ *               perDayPatientCost:
+ *                 type: integer
+ *                 description: Rupees charged to the hospital's wallet per enrolled patient per day (defaults to 100)
  *             example:
  *               name: "Apollo Hospital Delhi"
  *               helplineNumber: "01126825000"
+ *               contactNumber: "9876543210"
  *               email: "billing@apollodelhi.com"
  *               address: "Sarita Vihar, Delhi Mathura Road, New Delhi - 110076"
  *               userId: "apollo_delhi"
  *               password: "Hospital@123"
+ *               perDayPatientCost: 100
  *     responses:
  *       201:
  *         description: Hospital created successfully
@@ -174,6 +181,141 @@ hospitalRouter.get('/id', async (req, res, next) => {
     next(error)
   }
 })
+/**
+ * @swagger
+ * /api/v1/hospital/me:
+ *   get:
+ *     summary: Get the authenticated hospital's own profile (Hospital auth required)
+ *     description: >
+ *       Returns the hospital's full profile including the wallet balance (in
+ *       paise) and the per-day patient cost (in rupees) charged for each day a
+ *       patient is enrolled.
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Hospital profile
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Caller is not a hospital
+ *       404:
+ *         description: Hospital not found
+ */
+hospitalRouter.get("/me", AuthUser, requireRole("Hospital"), async (req, res, next) => {
+  try {
+    const user = req.user!; // guaranteed by middleware
+    const hospital = await GetHospitalProfile(user.id);
+    res.status(200).json({
+      success: true,
+      data: hospital,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/hospital/all:
+ *   get:
+ *     summary: List all hospitals with full info (Admin only)
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: All hospitals including wallet balance and per-day patient cost
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ */
+hospitalRouter.get("/all", AuthUser, requireRole("Admin"), async (req, res, next) => {
+  try {
+    const hospitals = await GetAllHospitals();
+    res.status(200).json({
+      success: true,
+      data: hospitals,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/hospital/update:
+ *   patch:
+ *     summary: Update a hospital's info and pricing (Admin only)
+ *     description: >
+ *       Partial update — only the fields present in the body are changed.
+ *       perDayPatientCost is the amount in rupees charged to the hospital's
+ *       wallet for each day a patient is enrolled.
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [hospitalId]
+ *             properties:
+ *               hospitalId:
+ *                 type: integer
+ *               name:
+ *                 type: string
+ *               helplineNumber:
+ *                 type: string
+ *               contactNumber:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               userId:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               perDayPatientCost:
+ *                 type: integer
+ *             example:
+ *               hospitalId: 1
+ *               perDayPatientCost: 150
+ *               helplineNumber: "01126825001"
+ *     responses:
+ *       200:
+ *         description: Updated hospital
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Hospital not found
+ *       409:
+ *         description: userId or helpline number already used by another hospital
+ */
+hospitalRouter.patch("/update", AuthUser, requireRole("Admin"), async (req, res, next) => {
+  try {
+    const safeData = HospitalUpdateSchema.parse(req.body);
+    if (safeData.password) {
+      safeData.password = await HashPassword(safeData.password);
+    }
+    const hospital = await HospitalUpdate(safeData);
+    res.status(200).json({
+      success: true,
+      data: hospital,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 /**
  * @swagger
  * /api/v1/hospital/patientmedicine:

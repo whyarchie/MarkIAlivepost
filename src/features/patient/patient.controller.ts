@@ -503,7 +503,15 @@ patientRouter.post("/medicalhistorycreate", async (req, res, next) => {
  * @swagger
  * /api/v1/patient/condition:
  *   post:
- *     summary: Request/Create a patient condition
+ *     summary: Request/Create a patient condition (charges the hospital wallet)
+ *     description: >
+ *       Enrolling a patient costs perDayPatientCost (rupees) for every enrolled
+ *       day, counted inclusively from startDate to endDate (no endDate = 1
+ *       day); half of that total is deducted from the hospital's wallet up
+ *       front. The response includes a `billing` object with days,
+ *       perDayPatientCost (rupees/day), totalCost, charged (the half actually
+ *       deducted) and remaining balance (all amounts in paise). Fails with 402
+ *       when the wallet balance can't cover the up-front half.
  *     tags: [Patients]
  *     security:
  *       - cookieAuth: []
@@ -579,6 +587,25 @@ patientRouter.post("/medicalhistorycreate", async (req, res, next) => {
  *                     endDate:
  *                       type: string
  *                       format: date-time
+ *                     billing:
+ *                       type: object
+ *                       properties:
+ *                         days:
+ *                           type: integer
+ *                         perDayPatientCost:
+ *                           type: integer
+ *                           description: Rupees per day
+ *                         totalCost:
+ *                           type: integer
+ *                           description: Full enrollment cost, in paise
+ *                         charged:
+ *                           type: integer
+ *                           description: Half of totalCost, deducted from the wallet, in paise
+ *                         balance:
+ *                           type: integer
+ *                           description: Remaining wallet balance, in paise
+ *       402:
+ *         description: Insufficient hospital wallet balance for this enrollment
  *       404:
  *         description: Invalid patient, disease, hospital, or doctor ID
  */
