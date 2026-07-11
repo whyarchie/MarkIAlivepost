@@ -7,8 +7,12 @@ import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
 import { getRazorpay } from "../../utils/razorpay";
 import { HardDeletePatient } from "../patient/patient.service";
-import type { HospitalCreate, HospitalLogin, HospitalUpdate, HospitalVerifyPayment } from "./hospital.schema";
+import type { HospitalConditionRecommendation, HospitalCreate, HospitalLogin, HospitalUpdate, HospitalVerifyPayment } from "./hospital.schema";
 import bcrypt from "bcrypt"
+
+// GST charged on top of every wallet top-up. Kept as a fraction of the base
+// amount so the paise math below can round once, in the smallest currency unit.
+const GST_RATE = 0.18;
 export async function HospitalCreate(data: HospitalCreate) {
   const hospital = await prisma.hospital.create({
     data: {
@@ -195,6 +199,51 @@ export async function GetPatientMedicineForHospital(user: { id: number; role: st
   return result;
 }
 
+// A hospital fills the invoice-facing notes on one of its patient conditions:
+// the doctor's recommendation and the invoice instructions printed on the
+// patient's downloadable invoice. Only the fields provided are changed, so a
+// hospital can update one without clearing the other. A hospital may only edit
+// conditions it owns.
+export async function UpdateConditionRecommendation(
+  hospitalId: number,
+  data: HospitalConditionRecommendation,
+) {
+  const { conditionId, doctorRecommendation, invoiceRecommendation } = data;
+
+  const condition = await prisma.patientCondition.findUnique({
+    where: { id: conditionId },
+    select: { id: true, hospitalId: true },
+  });
+
+  if (!condition) {
+    throw new AppError("Condition not found", 404);
+  }
+
+  // A hospital may only edit conditions under its own care.
+  if (condition.hospitalId !== hospitalId) {
+    throw new AppError("This condition does not belong to your hospital", 403);
+  }
+
+  const updated = await prisma.patientCondition.update({
+    where: { id: conditionId },
+    data: {
+      ...(doctorRecommendation !== undefined
+        ? { DoctorReccommendation: doctorRecommendation }
+        : {}),
+      ...(invoiceRecommendation !== undefined
+        ? { invoiceRecommendation: invoiceRecommendation }
+        : {}),
+    },
+    select: {
+      id: true,
+      DoctorReccommendation: true,
+      invoiceRecommendation: true,
+    },
+  });
+
+  return updated;
+}
+
 // A hospital removes a patient from its care.
 // - A patient is "enrolled with" a hospital through their PatientCondition rows.
 // - If the patient is enrolled with more than one hospital, we must NOT wipe the
@@ -251,11 +300,15 @@ export async function HospitalAddBalance(hospitalId: number, amount: number) {
   }
 
   // Razorpay works in the smallest currency unit (paise); the Order.amount
-  // column is also stored in paise, so keep a single value for both.
-  const amountInPaise = Math.round(amount * 100);
+  // column is also stored in paise. Round to paise first, then derive GST
+  // from that integer so `baseAmount + gstAmount` always equals the amount
+  // actually charged (no drift from rounding rupees and paise separately).
+  const baseAmountInPaise = Math.round(amount * 100);
+  const gstAmountInPaise = Math.round(baseAmountInPaise * GST_RATE);
+  const totalAmountInPaise = baseAmountInPaise + gstAmountInPaise;
 
   const options = {
-    amount: amountInPaise,
+    amount: totalAmountInPaise,
     currency: "INR",
     receipt: `order_rcptid_${hospitalId}_${Date.now()}`,
     notes: {
@@ -269,7 +322,8 @@ export async function HospitalAddBalance(hospitalId: number, amount: number) {
     data: {
       razorpayOrderId: order.id,
       hospitalId: hospitalId,
-      amount: amountInPaise,
+      amount: totalAmountInPaise,
+      baseAmount: baseAmountInPaise,
       currency: options.currency,
       receipt: options.receipt,
       status: order.status ?? "created",
@@ -282,6 +336,12 @@ export async function HospitalAddBalance(hospitalId: number, amount: number) {
   // separators (older seed data may contain dashes).
   return {
     order,
+    gst: {
+      baseAmount: baseAmountInPaise,
+      gstAmount: gstAmountInPaise,
+      gstRate: GST_RATE,
+      totalAmount: totalAmountInPaise,
+    },
     prefill: {
       name: hospital.name,
       email: hospital.email,
@@ -344,9 +404,11 @@ export async function HospitalVerifyPayment(
 
 // Idempotently records a successful payment, marks its order paid and credits
 // the hospital's balance in a single transaction. Shared by the client-side
-// /verify flow and the Razorpay /webhook. Amounts are in paise.
+// /verify flow and the Razorpay /webhook. Amounts are in paise. The wallet is
+// credited `order.baseAmount`, not `order.amount` — the difference is GST,
+// which was collected but isn't spendable balance.
 async function settlePayment(params: {
-  order: { razorpayOrderId: string; hospitalId: number; amount: number };
+  order: { razorpayOrderId: string; hospitalId: number; amount: number; baseAmount: number };
   razorpayPaymentId: string;
   razorpaySignature: string | null;
   status: string;
@@ -384,7 +446,7 @@ async function settlePayment(params: {
     }),
     prisma.hospital.update({
       where: { id: order.hospitalId },
-      data: { balance: { increment: order.amount } },
+      data: { balance: { increment: order.baseAmount } },
     }),
   ]);
 

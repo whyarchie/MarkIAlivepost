@@ -1,7 +1,8 @@
 model Order {
     id              Int       @id @default(autoincrement())
     razorpayOrderId String    @unique @map("razorpay_order_id")
-    amount          Int // paise
+    amount          Int // paise, total charged to Razorpay (base + GST)
+    baseAmount      Int       @map("base_amount") // paise, credited to the hospital's wallet on payment (excludes GST)
     currency        String    @default("INR")
     receipt         String?
     status          String    @default("created")

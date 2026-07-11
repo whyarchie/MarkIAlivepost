@@ -101,6 +101,36 @@ export const HospitalDeletePatientSchema = z.object({
     .positive("patientId must be a positive integer"),
 })
 
+// A hospital fills/updates the invoice-facing notes on one of its patient
+// conditions: the doctor's recommendation and the invoice instructions that get
+// printed on the downloadable patient invoice. Both are optional individually,
+// but at least one must be provided. Empty string clears a note.
+export const HospitalConditionRecommendationSchema = z
+  .object({
+    conditionId: z.coerce
+      .number({ message: "conditionId is required" })
+      .int("conditionId must be an integer")
+      .positive("conditionId must be a positive integer"),
+
+    doctorRecommendation: z
+      .string()
+      .max(2000, "Doctor recommendation is too long")
+      .trim()
+      .optional(),
+
+    invoiceRecommendation: z
+      .string()
+      .max(2000, "Invoice instructions are too long")
+      .trim()
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.doctorRecommendation !== undefined ||
+      data.invoiceRecommendation !== undefined,
+    { message: "Provide doctorRecommendation and/or invoiceRecommendation" },
+  )
+
 // Fields returned by the Razorpay checkout handler, sent back so the server can
 // verify the payment signature and credit the hospital's balance.
 export const HospitalVerifyPaymentSchema = z.object({
@@ -114,3 +144,4 @@ export type HospitalUpdate = z.infer<typeof HospitalUpdateSchema>
 export type HospitalLogin = z.infer<typeof HospitalLoginSchema>
 export type HospitalDeletePatient = z.infer<typeof HospitalDeletePatientSchema>
 export type HospitalVerifyPayment = z.infer<typeof HospitalVerifyPaymentSchema>
+export type HospitalConditionRecommendation = z.infer<typeof HospitalConditionRecommendationSchema>

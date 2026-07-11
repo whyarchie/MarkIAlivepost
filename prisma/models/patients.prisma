@@ -56,6 +56,8 @@ model PatientCondition {
   doctor          Doctor                 @relation(fields: [doctorId], references: [id])
   medicineAlloted MedicineAllotted[]
   patientProgress PatientProgress[]
+  DoctorReccommendation String?
+  invoiceRecommendation   String?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 }

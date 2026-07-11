@@ -1,5 +1,10 @@
 import prisma from "../../../config/prisma";
 import { AppError } from "../../../utils/AppError";
+import GemmaAi from "../../../utils/gemma_ai";
+import {
+  HospitalOverviewSystemPrompt,
+  parseHospitalOverview,
+} from "../../../prompt/hospitalOverview";
 
 /**
  * Returns dashboard summary counts scoped to a specific hospital.
@@ -246,6 +251,80 @@ export async function SeedRecoveryTrendForHospital(hospitalId: number) {
   }
 
   return seededCount;
+}
+
+/**
+ * Builds an AI-generated operational overview of a hospital's entire patient
+ * population. Feeds aggregate, de-identified statistics (never raw patient
+ * records) to the model and returns a validated, structured summary plus the
+ * underlying counts for the UI.
+ */
+export async function GetHospitalAiOverview(hospitalId: number) {
+  const [hospital, summary, charts, criticalConditions] = await Promise.all([
+    prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      select: { name: true },
+    }),
+    GetDashboardSummary(hospitalId),
+    GetDashboardChartsData(hospitalId),
+    // Open CRITICAL conditions — disease only, no patient identifiers, so the
+    // model gets concrete clinical context without receiving PII.
+    prisma.patientCondition.findMany({
+      where: { hospitalId, status: "CRITICAL" },
+      select: {
+        startDate: true,
+        disease: { select: { name: true, type: true } },
+      },
+      orderBy: { startDate: "asc" },
+      take: 200,
+    }),
+  ]);
+
+  // Aggregate the critical conditions by disease. Iterating in startDate-asc
+  // order means the first time we see a disease is its oldest critical case.
+  const criticalMap = new Map<
+    string,
+    { disease: string; type: string | null; count: number; oldestCriticalSince: string }
+  >();
+  for (const c of criticalConditions) {
+    const name = c.disease?.name ?? "Unknown";
+    const existing = criticalMap.get(name);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      criticalMap.set(name, {
+        disease: name,
+        type: c.disease?.type ?? null,
+        count: 1,
+        oldestCriticalSince: c.startDate ? c.startDate.toISOString() : "",
+      });
+    }
+  }
+  const criticalByDisease = Array.from(criticalMap.values()).sort(
+    (a, b) => b.count - a.count
+  );
+
+  const payload = {
+    hospitalName: hospital?.name ?? "This hospital",
+    patientCounts: summary,
+    activeConditions: charts.activeConditions,
+    medicationAdherence: charts.medicationAdherence,
+    topDiseases: charts.topDiseases,
+    followUpStatuses: charts.followUpStatuses,
+    recoveryTrend: charts.recoveryTrend.slice(-10),
+    criticalByDisease,
+  };
+
+  const raw = await GemmaAi({
+    SystemPrompt: HospitalOverviewSystemPrompt,
+    Prompt: `Hospital Patient Population Data: ${JSON.stringify(payload)}`,
+  });
+
+  return {
+    ...parseHospitalOverview(raw),
+    // Echo the counts so the card can show them alongside the AI narrative.
+    stats: summary,
+  };
 }
 
 

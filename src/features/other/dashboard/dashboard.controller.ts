@@ -2,7 +2,7 @@ import express from "express";
 import { AuthUser } from "../../../middleware/Auth";
 import { AppError } from "../../../utils/AppError";
 import { COMMON_ERROR } from "../../../constants/messages";
-import { GetDashboardSummary, GetDashboardChartsData } from "./dashboard.service";
+import { GetDashboardSummary, GetDashboardChartsData, GetHospitalAiOverview } from "./dashboard.service";
 
 const dashboardRouter = express.Router();
 
@@ -147,6 +147,72 @@ dashboardRouter.get("/charts", AuthUser, async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: chartsData,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/dashboard/ai-overview:
+ *   get:
+ *     summary: AI-generated overview of the hospital's whole patient population (Hospital auth required)
+ *     tags: [Dashboard]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Structured AI overview plus underlying counts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     status:
+ *                       type: string
+ *                       enum: [CRITICAL, NEEDS_ATTENTION, STABLE, HEALTHY, UNKNOWN]
+ *                     headline:
+ *                       type: string
+ *                     keyInsights:
+ *                       type: array
+ *                       items: { type: string }
+ *                     concerns:
+ *                       type: array
+ *                       items: { type: string }
+ *                     recommendedActions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           priority: { type: string, enum: [URGENT, IMPORTANT, ROUTINE] }
+ *                           action: { type: string }
+ *                     summaryMarkdown:
+ *                       type: string
+ *                     stats:
+ *                       type: object
+ *       401:
+ *         description: Unauthorized — no token provided
+ *       403:
+ *         description: Forbidden — only hospitals can access this
+ */
+dashboardRouter.get("/ai-overview", AuthUser, async (req, res, next) => {
+  try {
+    const user = req.user;
+    if (user?.role !== "Hospital") {
+      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
+    }
+
+    const overview = await GetHospitalAiOverview(user.id);
+
+    res.status(200).json({
+      success: true,
+      data: overview,
     });
   } catch (error) {
     next(error);

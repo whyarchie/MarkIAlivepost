@@ -1,7 +1,7 @@
 import express from "express";
 import { AuthUser, requireRole } from "../../middleware/Auth";
-import { HospitalLoginSchema, HospitalSchema, HospitalUpdateSchema, HospitalDeletePatientSchema, HospitalVerifyPaymentSchema } from "./hospital.schema";
-import { GetAllHospitals, GetHospitalById, GetHospitalProfile, GetPatientMedicineForHospital, HospitalAddBalance, HospitalCreate, HospitalDeletePatient, HospitalLogin, HospitalPaymentWebhook, HospitalUpdate, HospitalVerifyPayment, SearchHospital } from "./hospital.service";
+import { HospitalLoginSchema, HospitalSchema, HospitalUpdateSchema, HospitalDeletePatientSchema, HospitalVerifyPaymentSchema, HospitalConditionRecommendationSchema } from "./hospital.schema";
+import { GetAllHospitals, GetHospitalById, GetHospitalProfile, GetPatientMedicineForHospital, HospitalAddBalance, HospitalCreate, HospitalDeletePatient, HospitalLogin, HospitalPaymentWebhook, HospitalUpdate, HospitalVerifyPayment, SearchHospital, UpdateConditionRecommendation } from "./hospital.service";
 import HashPassword from "../../utils/hashUtils";
 import { success } from "zod";
 import { AppError } from "../../utils/AppError";
@@ -357,6 +357,66 @@ hospitalRouter.get("/patientmedicine", AuthUser, async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/hospital/condition/recommendation:
+ *   patch:
+ *     summary: Fill/update a patient condition's invoice notes (Hospital auth required)
+ *     description: >
+ *       Sets the doctor's recommendation and/or the invoice instructions on one
+ *       of the hospital's patient conditions. These notes are printed on the
+ *       patient's downloadable invoice. Only the fields provided are changed; an
+ *       empty string clears a note. A hospital may only edit conditions it owns.
+ *     tags: [Hospitals]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [conditionId]
+ *             properties:
+ *               conditionId:
+ *                 type: integer
+ *               doctorRecommendation:
+ *                 type: string
+ *                 description: Doctor's recommendation/advice for the patient
+ *               invoiceRecommendation:
+ *                 type: string
+ *                 description: Instructions/notes to print on the patient's invoice
+ *             example:
+ *               conditionId: 12
+ *               doctorRecommendation: "Complete the full antibiotic course. Rest for 5 days."
+ *               invoiceRecommendation: "Follow up after 1 week. Avoid strenuous activity."
+ *     responses:
+ *       200:
+ *         description: Condition notes updated
+ *       400:
+ *         description: Invalid input
+ *       403:
+ *         description: Condition does not belong to this hospital
+ *       404:
+ *         description: Condition not found
+ */
+hospitalRouter.patch("/condition/recommendation", AuthUser, requireRole("Hospital"), async (req, res, next) => {
+  try {
+    const user = req.user!; // guaranteed by middleware
+
+    const safeData = HospitalConditionRecommendationSchema.parse(req.body);
+    const result = await UpdateConditionRecommendation(user.id, safeData);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 /**
  * @swagger
  * /api/v1/hospital/patient:
