@@ -5,6 +5,7 @@ import {
   AdminProgressJsonSchema,
   AdminDeletePatientSchema,
   AdminDeleteConditionSchema,
+  AdminUpdateConditionStatusSchema,
 } from "./admin.schema";
 import {
   AdminCreate,
@@ -13,6 +14,7 @@ import {
   AdminUpdateProgressJsonField,
   AdminDeletePatient,
   AdminDeletePatientCondition,
+  AdminUpdatePatientConditionStatus,
 } from "./admin.service";
 import HashPassword from "../../utils/hashUtils";
 import { AuthUser, requireRole } from "../../middleware/Auth";
@@ -306,6 +308,61 @@ adminRouter.delete(
       const { patientConditionId } = AdminDeleteConditionSchema.parse(req.body);
       const deleted = await AdminDeletePatientCondition(patientConditionId);
       res.status(200).json({ success: true, data: deleted });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/admin/condition/status:
+ *   patch:
+ *     summary: Update the clinical status of a single patient condition (admin only)
+ *     tags: [Admins]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [patientConditionId, status]
+ *             properties:
+ *               patientConditionId:
+ *                 type: integer
+ *               status:
+ *                 type: string
+ *                 enum: [STABLE, CRITICAL, RECOVERED]
+ *             example:
+ *               patientConditionId: 34
+ *               status: "STABLE"
+ *     responses:
+ *       200:
+ *         description: Updated patient condition (id and new status)
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not an admin
+ *       404:
+ *         description: Patient condition not found
+ */
+adminRouter.patch(
+  "/condition/status",
+  AuthUser,
+  requireRole("Admin"),
+  async (req, res, next) => {
+    try {
+      const { patientConditionId, status } =
+        AdminUpdateConditionStatusSchema.parse(req.body);
+      const updated = await AdminUpdatePatientConditionStatus(
+        patientConditionId,
+        status
+      );
+      res.status(200).json({ success: true, data: updated });
     } catch (error) {
       next(error);
     }

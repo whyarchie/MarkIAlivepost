@@ -125,3 +125,26 @@ export async function AdminDeletePatientCondition(patientConditionId: number) {
 
   return prisma.patientCondition.delete({ where: { id: patientConditionId } });
 }
+
+// Admin updates the clinical status (STABLE/CRITICAL/RECOVERED) of a single
+// patient condition. Verifies the condition exists first so we can return a
+// clean 404 instead of Prisma's generic P2025.
+export async function AdminUpdatePatientConditionStatus(
+  patientConditionId: number,
+  status: "STABLE" | "CRITICAL" | "RECOVERED"
+) {
+  const condition = await prisma.patientCondition.findUnique({
+    where: { id: patientConditionId },
+    select: { id: true },
+  });
+
+  if (!condition) {
+    throw new AppError(COMMON_ERROR.INVALID_CONDITION, 404);
+  }
+
+  return prisma.patientCondition.update({
+    where: { id: patientConditionId },
+    data: { status },
+    select: { id: true, status: true },
+  });
+}

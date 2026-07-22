@@ -1,4 +1,5 @@
 import z from "zod";
+import { PatientConditionStatusEnum } from "../patient/patient.schema";
 
 export const AdminSchema = z.object({
   name: z
@@ -74,8 +75,19 @@ export const AdminDeleteConditionSchema = z.object({
     .positive("patientConditionId must be a positive integer"),
 });
 
+// Admin updates the clinical status of a single patient condition. Reuses the
+// shared PatientConditionStatusEnum so the allowed values stay in one place.
+export const AdminUpdateConditionStatusSchema = z.object({
+  patientConditionId: z.coerce
+    .number({ message: "patientConditionId is required" })
+    .int("patientConditionId must be an integer")
+    .positive("patientConditionId must be a positive integer"),
+  status: PatientConditionStatusEnum,
+});
+
 export type AdminCreate = z.infer<typeof AdminSchema>;
 export type AdminLogin = z.infer<typeof AdminLoginSchema>;
 export type AdminProgressJson = z.infer<typeof AdminProgressJsonSchema>;
 export type AdminDeletePatient = z.infer<typeof AdminDeletePatientSchema>;
 export type AdminDeleteCondition = z.infer<typeof AdminDeleteConditionSchema>;
+export type AdminUpdateConditionStatus = z.infer<typeof AdminUpdateConditionStatusSchema>;

@@ -130,6 +130,11 @@ export const questionSchema = z.object({
     message: "Text questions shouldn't have options, non-text must have options",
   }
 );
+// Mirrors the PatientConditionStatus enum in the Prisma schema. Exported so
+// other features (e.g. the admin condition-status update) validate against the
+// same source of truth instead of re-declaring the values.
+export const PatientConditionStatusEnum = z.enum(["STABLE", "CRITICAL", "RECOVERED"]);
+
 //PatientConditionSchema
 export const PatientConditionSchema = z
   .object({
@@ -150,7 +155,7 @@ export const PatientConditionSchema = z
       .number()
       .int()
       .positive({ message: COMMON_ERROR.INVALID_DOCTOR }),
-    status: z.enum(["STABLE", "CRITICAL", "RECOVERED"]),
+    status: PatientConditionStatusEnum,
 
     startDate: z.coerce.date({
       message: COMMON_ERROR.STARTDATE_REQUIRE,

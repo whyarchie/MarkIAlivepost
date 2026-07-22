@@ -6,6 +6,9 @@ import { globalErrorHandler } from "./middleware/globalErrorHandler"
 import { setupSwagger } from "./swagger";
 import cors from "cors";
 import "dotenv/config";
+// Registers the scheduled jobs (daily follow-up reminders + 7 AM AI overview
+// generation). Importing for side effects starts the schedulers on boot.
+import "./utils/cron";
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000

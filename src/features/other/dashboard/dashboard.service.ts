@@ -1,9 +1,11 @@
 import prisma from "../../../config/prisma";
+import { Prisma } from "../../../../generated/prisma/client";
 import { AppError } from "../../../utils/AppError";
-import GemmaAi from "../../../utils/gemma_ai";
+import OpenRouterAi from "../../../utils/openrouter_ai";
 import {
   HospitalOverviewSystemPrompt,
   parseHospitalOverview,
+  type HospitalOverview,
 } from "../../../prompt/hospitalOverview";
 
 /**
@@ -253,13 +255,26 @@ export async function SeedRecoveryTrendForHospital(hospitalId: number) {
   return seededCount;
 }
 
+// The stored/served overview shape: the validated AI summary plus the underlying
+// counts, and (when read back from the DB) when it was last generated.
+export type HospitalAiOverviewResult = HospitalOverview & {
+  stats: Awaited<ReturnType<typeof GetDashboardSummary>>;
+};
+
 /**
  * Builds an AI-generated operational overview of a hospital's entire patient
- * population. Feeds aggregate, de-identified statistics (never raw patient
- * records) to the model and returns a validated, structured summary plus the
- * underlying counts for the UI.
+ * population by calling the model live. Feeds aggregate, de-identified statistics
+ * (never raw patient records) to the model and returns a validated, structured
+ * summary plus the underlying counts for the UI.
+ *
+ * This is the expensive primitive: it makes an OpenRouter call. The dashboard
+ * does NOT call this on every request — the daily cron generates and stores the
+ * result (see GenerateAllHospitalAiOverviews) and the dashboard reads the cached
+ * copy via GetStoredHospitalAiOverview.
  */
-export async function GetHospitalAiOverview(hospitalId: number) {
+export async function ComputeHospitalAiOverview(
+  hospitalId: number
+): Promise<HospitalAiOverviewResult> {
   const [hospital, summary, charts, criticalConditions] = await Promise.all([
     prisma.hospital.findUnique({
       where: { id: hospitalId },
@@ -315,7 +330,7 @@ export async function GetHospitalAiOverview(hospitalId: number) {
     criticalByDisease,
   };
 
-  const raw = await GemmaAi({
+  const raw = await OpenRouterAi({
     SystemPrompt: HospitalOverviewSystemPrompt,
     Prompt: `Hospital Patient Population Data: ${JSON.stringify(payload)}`,
   });
@@ -327,4 +342,88 @@ export async function GetHospitalAiOverview(hospitalId: number) {
   };
 }
 
+// The shape returned to the dashboard: the cached overview plus when it was made.
+export type StoredHospitalAiOverview = HospitalAiOverviewResult & {
+  generatedAt: Date;
+};
+
+/**
+ * Generates a fresh AI overview for one hospital (an OpenRouter call) and stores
+ * it as the hospital's single cached overview row, replacing any previous one.
+ * Returns the stored overview including its generation timestamp.
+ */
+export async function GenerateAndStoreHospitalAiOverview(
+  hospitalId: number
+): Promise<StoredHospitalAiOverview> {
+  const overview = await ComputeHospitalAiOverview(hospitalId);
+  const generatedAt = new Date();
+  // Prisma's Json input type wants a structural JSON value; our typed overview is
+  // plain JSON-serialisable data, so this cast is safe.
+  const data = overview as unknown as Prisma.InputJsonValue;
+
+  // One row per hospital (hospitalId is unique) — upsert so each run replaces the
+  // previous briefing in place. The Json column stores the whole overview object.
+  const row = await prisma.hospitalAiOverview.upsert({
+    where: { hospitalId },
+    create: { hospitalId, data, generatedAt },
+    update: { data, generatedAt },
+  });
+
+  return { ...overview, generatedAt: row.generatedAt };
+}
+
+/**
+ * Regenerates the cached AI overview for EVERY hospital. Intended to be run by a
+ * daily cron. Hospitals are processed sequentially so we don't fire a burst of
+ * concurrent model calls; one hospital failing (e.g. a transient AI error) never
+ * aborts the rest. Returns a small summary for logging.
+ */
+export async function GenerateAllHospitalAiOverviews(): Promise<{
+  total: number;
+  succeeded: number;
+  failed: number;
+}> {
+  const hospitals = await prisma.hospital.findMany({ select: { id: true, name: true } });
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const hospital of hospitals) {
+    try {
+      await GenerateAndStoreHospitalAiOverview(hospital.id);
+      succeeded++;
+    } catch (error) {
+      failed++;
+      console.error(
+        `[ai-overview] Failed for hospital ${hospital.id} (${hospital.name}):`,
+        error
+      );
+    }
+  }
+
+  return { total: hospitals.length, succeeded, failed };
+}
+
+/**
+ * Reads the cached AI overview for a hospital from the DB (what the dashboard
+ * serves). If none exists yet — e.g. the hospital was created after the last cron
+ * run, or the cron has never run — it lazily generates and stores one on the fly
+ * so the dashboard is never empty. Subsequent requests hit the cache until the
+ * next daily regeneration.
+ */
+export async function GetStoredHospitalAiOverview(
+  hospitalId: number
+): Promise<StoredHospitalAiOverview> {
+  const row = await prisma.hospitalAiOverview.findUnique({ where: { hospitalId } });
+
+  if (!row) {
+    return GenerateAndStoreHospitalAiOverview(hospitalId);
+  }
+
+  // The Json column round-trips as the overview object we stored.
+  return {
+    ...(row.data as unknown as HospitalAiOverviewResult),
+    generatedAt: row.generatedAt,
+  };
+}
 

@@ -13,7 +13,7 @@ import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
 import { UserSummarySystemPrompt, parsePatientSummary, buildRecoveryTrajectory } from "../../prompt/patientSummary";
-import GemmaAi from "../../utils/gemma_ai";
+import OpenRouterAi from "../../utils/openrouter_ai";
 
 export async function CreatePatient(data: PatientInput) {
   const patient = await prisma.patient.upsert({
@@ -788,7 +788,7 @@ export async function GetFullPatientProfile({
 
 export async function GetPatientSummary(id:number){
   const patientProfile = await GetFullPatientProfile({patientId: id})
-  const raw = await GemmaAi({
+  const raw = await OpenRouterAi({
     SystemPrompt: UserSummarySystemPrompt,
     Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`
   })

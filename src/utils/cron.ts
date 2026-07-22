@@ -2,6 +2,12 @@ import cron from "node-cron";
 import prisma from "../config/prisma";
 import { AppError } from "./AppError";
 import { PushNotification } from "./fcm";
+import { GenerateAllHospitalAiOverviews } from "../features/other/dashboard/dashboard.service";
+
+// Optional timezone for all scheduled jobs (e.g. "Asia/Kolkata"). Defaults to the
+// server's local time when unset. node-cron interprets the cron expression in it.
+const CRON_TIMEZONE = process.env.CRON_TIMEZONE || undefined;
+const cronOptions = CRON_TIMEZONE ? { timezone: CRON_TIMEZONE } : undefined;
 
 cron.schedule("0 6 * * *", async () => {
     try {
@@ -60,3 +66,23 @@ cron.schedule("0 6 * * *", async () => {
         console.error('Cron job failed:', error);
     }
 })
+
+// ── Daily AI patient-overview generation ─────────────────────────────────────
+// Every day at 7:00 AM, regenerate the AI patient overview for every hospital and
+// store it in the DB. The dashboard reads the stored copy, so hospitals get an
+// up-to-date briefing without an (expensive) live model call on each page load.
+// Override the schedule with AI_OVERVIEW_CRON if needed (defaults to 7:00 AM).
+const AI_OVERVIEW_CRON = process.env.AI_OVERVIEW_CRON || "0 7 * * *";
+
+cron.schedule(AI_OVERVIEW_CRON, async () => {
+    try {
+        console.log("[ai-overview] Starting daily hospital AI overview generation…");
+        const result = await GenerateAllHospitalAiOverviews();
+        console.log(
+            `[ai-overview] Done: ${result.succeeded}/${result.total} hospitals updated` +
+            (result.failed ? `, ${result.failed} failed` : "")
+        );
+    } catch (error) {
+        console.error("[ai-overview] Daily generation cron failed:", error);
+    }
+}, cronOptions)
