@@ -356,6 +356,17 @@ export async function GenerateAndStoreHospitalAiOverview(
   hospitalId: number
 ): Promise<StoredHospitalAiOverview> {
   const overview = await ComputeHospitalAiOverview(hospitalId);
+
+  // UNKNOWN means the model's answer couldn't be parsed into the schema (e.g. a
+  // malformed/truncated response). Never overwrite a good cached briefing with
+  // that — throw so the cron logs a failure and yesterday's copy keeps serving.
+  if (overview.status === "UNKNOWN") {
+    throw new AppError(
+      `AI returned an unparseable overview for hospital ${hospitalId}; keeping the previous cached copy`,
+      502
+    );
+  }
+
   const generatedAt = new Date();
   // Prisma's Json input type wants a structural JSON value; our typed overview is
   // plain JSON-serialisable data, so this cast is safe.
@@ -388,16 +399,31 @@ export async function GenerateAllHospitalAiOverviews(): Promise<{
   let succeeded = 0;
   let failed = 0;
 
+  // Up to 3 attempts per hospital: back-to-back calls regularly trip transient
+  // upstream rate limits (OpenRouter 429s mid-batch), which a short wait clears.
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 10_000;
+
   for (const hospital of hospitals) {
-    try {
-      await GenerateAndStoreHospitalAiOverview(hospital.id);
-      succeeded++;
-    } catch (error) {
-      failed++;
-      console.error(
-        `[ai-overview] Failed for hospital ${hospital.id} (${hospital.name}):`,
-        error
-      );
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await GenerateAndStoreHospitalAiOverview(hospital.id);
+        succeeded++;
+        break;
+      } catch (error) {
+        if (attempt >= MAX_ATTEMPTS) {
+          failed++;
+          console.error(
+            `[ai-overview] Failed for hospital ${hospital.id} (${hospital.name}) after ${attempt} attempts:`,
+            error
+          );
+          break;
+        }
+        console.warn(
+          `[ai-overview] Attempt ${attempt} failed for hospital ${hospital.id} (${hospital.name}), retrying in ${RETRY_DELAY_MS / 1000}s…`
+        );
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      }
     }
   }
 
@@ -406,19 +432,17 @@ export async function GenerateAllHospitalAiOverviews(): Promise<{
 
 /**
  * Reads the cached AI overview for a hospital from the DB (what the dashboard
- * serves). If none exists yet — e.g. the hospital was created after the last cron
- * run, or the cron has never run — it lazily generates and stores one on the fly
- * so the dashboard is never empty. Subsequent requests hit the cache until the
- * next daily regeneration.
+ * serves). This NEVER calls the model — requests must not burn tokens. If no
+ * cached row exists yet (hospital created after the last run, or the cron has
+ * never run), returns null and the caller reports "not generated yet"; the next
+ * daily run (or a manual trigger of the generate endpoint) fills it in.
  */
 export async function GetStoredHospitalAiOverview(
   hospitalId: number
-): Promise<StoredHospitalAiOverview> {
+): Promise<StoredHospitalAiOverview | null> {
   const row = await prisma.hospitalAiOverview.findUnique({ where: { hospitalId } });
 
-  if (!row) {
-    return GenerateAndStoreHospitalAiOverview(hospitalId);
-  }
+  if (!row) return null;
 
   // The Json column round-trips as the overview object we stored.
   return {

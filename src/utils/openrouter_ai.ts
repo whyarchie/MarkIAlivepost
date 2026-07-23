@@ -67,6 +67,11 @@ export default async function OpenRouterAi({ SystemPrompt, Prompt }: AiPrompt): 
       // Explicit cap avoids OpenRouter reserving credits for the model's full
       // output ceiling, which triggers a 402 on low balances (see note above).
       max_tokens: maxTokens,
+      // Disable hidden reasoning/thinking (OpenRouter unified param). Models with
+      // dynamic thinking (e.g. gemini-2.5-flash) sometimes burn most of max_tokens
+      // on reasoning, truncating the visible JSON mid-object. Our summarization
+      // tasks don't need chain-of-thought, and disabling it also cuts cost.
+      reasoning: { enabled: false },
     }),
   });
 
@@ -79,9 +84,36 @@ export default async function OpenRouterAi({ SystemPrompt, Prompt }: AiPrompt): 
   }
 
   const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: {
+      message?: { content?: string };
+      finish_reason?: string;
+      error?: { code?: number; message?: string };
+    }[];
   };
 
+  const choice = data.choices?.[0];
+
+  // OpenRouter can answer HTTP 200 yet attach a per-choice error (e.g. an
+  // upstream 429 rate limit) alongside PARTIAL content. Treat that as a failure —
+  // never hand the partial text to callers, who would cache the garbage.
+  if (choice?.error) {
+    throw new AppError(
+      `AI upstream error (${choice.error.code ?? "unknown"}): ${String(choice.error.message ?? "").slice(0, 200)}`,
+      502,
+    );
+  }
+
+  // A non-"stop" finish (e.g. "length") means the model was cut off mid-answer —
+  // for our structured-JSON tasks that yields unparseable partial output, which
+  // callers might otherwise cache. Fail loudly so the caller can retry/keep the
+  // previous good result instead of storing garbage.
+  if (choice?.finish_reason && choice.finish_reason !== "stop") {
+    throw new AppError(
+      `AI response was truncated (finish_reason: ${choice.finish_reason})`,
+      502,
+    );
+  }
+
   // Empty string is safe: both callers' parsers tolerate an empty/blank response.
-  return data.choices?.[0]?.message?.content ?? "";
+  return choice?.message?.content ?? "";
 }
