@@ -18,7 +18,8 @@ const allowedOrigins = [
   "http://api.alivepost.com",
   "http://localhost:3000",
   "http://localhost:3001",
-  "http://localhost:3002"
+  "http://localhost:3002",
+  "https://alivepost-admin.vercel.app"
 ]
 
 app.use(cors({
