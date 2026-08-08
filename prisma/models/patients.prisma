@@ -6,14 +6,14 @@ model Patient {
   gender         Gender
   mobileNumber   String             @unique
   idType         IdType
-  idNumber       String            
+  idNumber       String
   medicalHistory MedicalHistory[]
   conditions     PatientCondition[]
   patientDevices PatientDevice[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
-@@unique([idType, idNumber])
 
+  @@unique([idType, idNumber])
 }
 
 model PatientDevice {
@@ -42,24 +42,25 @@ model MedicalHistory {
 }
 
 model PatientCondition {
-  id              Int                    @id @default(autoincrement())
-  patientId       Int
-  patient         Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  diseaseId       Int
-  disease         Disease                @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
-  status          PatientConditionStatus
-  startDate       DateTime
-  endDate         DateTime?
-  hospitalId      Int
-  hospital        Hospital               @relation(fields: [hospitalId], references: [id])
-  doctorId        Int
-  doctor          Doctor                 @relation(fields: [doctorId], references: [id])
-  medicineAlloted MedicineAllotted[]
-  patientProgress PatientProgress[]
+  id                    Int                    @id @default(autoincrement())
+  patientId             Int
+  patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  diseaseId             Int
+  disease               Disease                @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+  status                PatientConditionStatus
+  startDate             DateTime
+  endDate               DateTime?
+  hospitalId            Int
+  hospital              Hospital               @relation(fields: [hospitalId], references: [id])
+  doctorId              Int
+  doctor                Doctor                 @relation(fields: [doctorId], references: [id])
+  HospitalPatientId     String?
+  medicineAlloted       MedicineAllotted[]
+  patientProgress       PatientProgress[]
   DoctorReccommendation String?
-  invoiceRecommendation   String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  invoiceRecommendation String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 }
 
 enum PatientConditionStatus {
@@ -77,7 +78,7 @@ model MedicineAllotted {
   quantity           Int               @default(1)
   tillDate           DateTime
   timings            MedicineTimings[]
-  MedicineStatus    MedicineStatus[]
+  MedicineStatus     MedicineStatus[]
 }
 
 model MedicineTimings {
@@ -116,10 +117,11 @@ enum IdType {
   ABHA_ID
   PATIENT_ID
 }
+
 model MedicineStatus {
-  id                Int              @id @default(autoincrement())
-  medicineAlloted   MedicineAllotted[]
-  medicineTaken     Boolean
-  remark            String?
-  createdAt          DateTime         @default(now())
+  id              Int                @id @default(autoincrement())
+  medicineAlloted MedicineAllotted[]
+  medicineTaken   Boolean
+  remark          String?
+  createdAt       DateTime           @default(now())
 }

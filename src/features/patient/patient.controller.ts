@@ -616,6 +616,7 @@ patientRouter.post("/condition", AuthUser, async (req, res, next) => {
     const user = req.user;
     // Validate input data
     const safeData = PatientConditionSchema.parse(data);
+    console.table(safeData)
     const payload = {
       ...safeData,
       [`${user?.role.toLowerCase()}Id`]: user?.id

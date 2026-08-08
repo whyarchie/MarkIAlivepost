@@ -222,6 +222,7 @@ export async function PatientConditionCreate(data: PatientConditionInput) {
         data: {
           patientId: data.patientId,
           hospitalId: data.hospitalId,
+          HospitalPatientId: data.hostpitalPatientId,
           doctorId: data.doctorId,
           diseaseId: data.diseaseId,
           startDate: data.startDate,
@@ -786,8 +787,8 @@ export async function GetFullPatientProfile({
   return patient;
 }
 
-export async function GetPatientSummary(id:number){
-  const patientProfile = await GetFullPatientProfile({patientId: id})
+export async function GetPatientSummary(id: number) {
+  const patientProfile = await GetFullPatientProfile({ patientId: id })
   const raw = await OpenRouterAi({
     SystemPrompt: UserSummarySystemPrompt,
     Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`
