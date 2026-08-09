@@ -7,6 +7,7 @@ import {
   parseHospitalOverview,
   type HospitalOverview,
 } from "../../../prompt/hospitalOverview";
+import { GetAllPatientsForHospital } from '../../patient/patient.service.ts'
 
 /**
  * Returns dashboard summary counts scoped to a specific hospital.
@@ -275,17 +276,18 @@ export type HospitalAiOverviewResult = HospitalOverview & {
 export async function ComputeHospitalAiOverview(
   hospitalId: number
 ): Promise<HospitalAiOverviewResult> {
-  const [hospital, summary, charts, criticalConditions] = await Promise.all([
+  const [hospital, summary, charts, patient, criticalConditions] = await Promise.all([
     prisma.hospital.findUnique({
       where: { id: hospitalId },
       select: { name: true },
     }),
     GetDashboardSummary(hospitalId),
     GetDashboardChartsData(hospitalId),
+    GetAllPatientsForHospital(hospitalId, 1, 100),
     // Open CRITICAL conditions — disease only, no patient identifiers, so the
     // model gets concrete clinical context without receiving PII.
     prisma.patientCondition.findMany({
-      where: { hospitalId, status: "CRITICAL" },
+      where: { hospitalId },
       select: {
         startDate: true,
         disease: { select: { name: true, type: true } },
@@ -322,6 +324,7 @@ export async function ComputeHospitalAiOverview(
   const payload = {
     hospitalName: hospital?.name ?? "This hospital",
     patientCounts: summary,
+    patient: patient,
     activeConditions: charts.activeConditions,
     medicationAdherence: charts.medicationAdherence,
     topDiseases: charts.topDiseases,

@@ -162,7 +162,9 @@ export const PatientConditionSchema = z
       message: COMMON_ERROR.STARTDATE_REQUIRE,
     }),
 
-    endDate: z.coerce.date().optional(),
+    endDate: z.coerce.date({
+      message: "END DATE REQUIRED"
+    }),
   })
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
