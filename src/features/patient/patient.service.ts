@@ -33,41 +33,7 @@ export async function CreatePatient(data: PatientInput) {
 }
 
 export async function SearchPatientByMobile(mobileNumber: string, hospitalId: number) {
-  // Normalize: strip +91 or 91 prefix
-  const digits = mobileNumber.trim().replace(/\D/g, "");
-  const normalized = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
-
-  const patient = await prisma.patient.findUnique({
-    where: { mobileNumber: normalized },
-    include: {
-      medicalHistory: {
-        include: { disease: true },
-        orderBy: { startDate: "desc" },
-      },
-      conditions: {
-        where: { hospitalId },
-        include: {
-          disease: true,
-          hospital: true,
-          doctor: true,
-          medicineAlloted: {
-            include: {
-              medicine: true,
-              timings: true,
-              MedicineStatus: true,
-            },
-          },
-          patientProgress: true,
-        },
-        orderBy: { startDate: "desc" },
-      },
-    },
-  });
-  if (!patient) {
-    throw new AppError("Patient not found with this mobile number", 404);
-  }
-
-  return patient;
+  return GetFullPatientProfile({ mobileNumber, hospitalId });
 }
 
 //Login patient using mobile number and dateofBirth
@@ -701,10 +667,11 @@ export async function GetHighRiskPatientsForHospital(hospitalId: number, page: n
 
 
 /**
- * Full patient profile with all relations.
+ * Patient profile with its related clinical data.
  * Excludes: Hospital.password, PatientDevice.fcmToken
  *
- * Lookup by patientId OR mobileNumber. Provide at least one.
+ * Lookup by patientId OR mobileNumber. When hospitalId is provided, the
+ * patient must be enrolled with that hospital and only its conditions return.
  */
 export async function GetFullPatientProfile({
   patientId,
@@ -726,12 +693,20 @@ export async function GetFullPatientProfile({
     normalizedMobile = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
   }
 
-  const where = patientId
+  const patientIdentifier = patientId
     ? { id: patientId }
     : { mobileNumber: normalizedMobile! };
 
-  const patient = await prisma.patient.findUnique({
-    where,
+  const patient = await prisma.patient.findFirst({
+    where: {
+      ...patientIdentifier,
+      // Filtering the included conditions is not sufficient authorization: it
+      // would still return the rest of an unrelated patient's profile. Require
+      // an actual relationship whenever a hospital is performing the lookup.
+      ...(hospitalId !== undefined
+        ? { conditions: { some: { hospitalId } } }
+        : {}),
+    },
     include: {
       medicalHistory: {
         include: {
@@ -740,7 +715,7 @@ export async function GetFullPatientProfile({
         orderBy: { startDate: "desc" },
       },
       conditions: {
-        ...(hospitalId ? { where: { hospitalId } } : {}),
+        ...(hospitalId !== undefined ? { where: { hospitalId } } : {}),
         include: {
           disease: true,
           hospital: {
@@ -787,8 +762,8 @@ export async function GetFullPatientProfile({
   return patient;
 }
 
-export async function GetPatientSummary(id: number) {
-  const patientProfile = await GetFullPatientProfile({ patientId: id })
+export async function GetPatientSummary(id: number, hospitalId?: number) {
+  const patientProfile = await GetFullPatientProfile({ patientId: id, hospitalId })
   const raw = await OpenRouterAi({
     SystemPrompt: UserSummarySystemPrompt,
     Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`

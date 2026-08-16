@@ -38,7 +38,7 @@ import {
   SearchPatientByMobile,
   GetPatientSummary,
 } from "./patient.service";
-import { AuthUser } from "../../middleware/Auth";
+import { AuthUser, requireRole } from "../../middleware/Auth";
 import { AppError } from "../../utils/AppError";
 import { COMMON_ERROR } from "../../constants/messages";
 const patientRouter = express.Router();
@@ -62,15 +62,16 @@ const patientRouter = express.Router();
  *     responses:
  *       200:
  *         description: Patient found with conditions and history
+ *       401:
+ *         description: Missing or invalid authentication token
+ *       403:
+ *         description: Authenticated user is not a hospital
  *       404:
- *         description: Patient not found
+ *         description: Patient not found under this hospital's care
  */
-patientRouter.get("/search", AuthUser, async (req, res, next) => {
+patientRouter.get("/search", AuthUser, requireRole("Hospital"), async (req, res, next) => {
   try {
-    const user = req.user;
-    if (user?.role !== "Hospital") {
-      throw new AppError(COMMON_ERROR.INVALID_ROLE, 403);
-    }
+    const user = req.user!;
     const mobile = req.query.mobile as string;
     if (!mobile) {
       throw new AppError("mobile query parameter is required", 400);
@@ -1629,6 +1630,8 @@ patientRouter.get('/profile', AuthUser, async (req, res, next) => {
  *         description: Missing or invalid userId for Hospital role
  *       403:
  *         description: Invalid role
+ *       404:
+ *         description: Patient not found under this hospital's care
  */
 patientRouter.get('/summary', AuthUser, async (req, res, next) => {
   try {
@@ -1642,7 +1645,10 @@ patientRouter.get('/summary', AuthUser, async (req, res, next) => {
       })
     } else if (user?.role === 'Hospital') {
       const userId = Number(req.query.userId as string)
-      result = await GetPatientSummary(userId)
+      if (!Number.isInteger(userId) || userId <= 0) {
+        throw new AppError("A valid patient userId is required", 400);
+      }
+      result = await GetPatientSummary(userId, user.id)
       res.status(200).json({
         success: true,
         data: result
@@ -1657,5 +1663,4 @@ patientRouter.get('/summary', AuthUser, async (req, res, next) => {
   }
 });
 export default patientRouter;
-
 
