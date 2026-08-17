@@ -72,7 +72,7 @@ cron.schedule("0 6 * * *", async () => {
 // store it in the DB. The dashboard reads the stored copy, so hospitals get an
 // up-to-date briefing without an (expensive) live model call on each page load.
 // Override the schedule with AI_OVERVIEW_CRON if needed (defaults to 7:00 AM).
-const AI_OVERVIEW_CRON = process.env.AI_OVERVIEW_CRON || "0 7 * * *";
+const AI_OVERVIEW_CRON = process.env.AI_OVERVIEW_CRON || "* 22 * * *";
 
 
 cron.schedule(AI_OVERVIEW_CRON, async () => {

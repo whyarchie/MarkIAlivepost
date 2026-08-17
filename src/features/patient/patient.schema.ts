@@ -7,7 +7,7 @@ const normalizeMobile = (mobile: string): string => {
     return digits.slice(2);
   }
   return digits;
-};export const patientSchema = z.object({
+}; export const patientSchema = z.object({
   name: z
     .string()
     .trim()
@@ -38,7 +38,7 @@ const normalizeMobile = (mobile: string): string => {
     })
     .transform(normalizeMobile),
 
-  idType: z.enum(["AADHAR", "DRIVING_LICENSE", "PASSPORT", "ABHA_ID", "PATIENT_ID"], {
+  idType: z.enum(["AADHAR", "DRIVING_LICENSE", "PASSPORT", "ABHA_ID"], {
     message: "Invalid ID type",
   }),
 
@@ -142,7 +142,8 @@ export const PatientConditionSchema = z
       .number()
       .int()
       .positive({ message: PATIENT_ERRORS.INVALID_PATIENT }),
-
+    hostpitalPatientId: z
+      .string(),
     diseaseId: z
       .number()
       .int()
@@ -161,7 +162,9 @@ export const PatientConditionSchema = z
       message: COMMON_ERROR.STARTDATE_REQUIRE,
     }),
 
-    endDate: z.coerce.date().optional(),
+    endDate: z.coerce.date({
+      message: "END DATE REQUIRED"
+    }),
   })
   .refine((data) => !data.endDate || data.endDate >= data.startDate, {
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
@@ -238,7 +241,7 @@ export const PatientMedicineStatusSchema = z.object({
   medicineTaken: z.boolean(),
   remark: z.string().optional(),
 });
-export type  PatientLoginInput= z.infer<typeof patientLoginSchema>;
+export type PatientLoginInput = z.infer<typeof patientLoginSchema>;
 export type PatientDeleteInput = z.infer<typeof patientDeleteSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type MedicalHistoryCreate = z.infer<typeof medicalHistorySchema>;

@@ -113,7 +113,7 @@ export default async function OpenRouterAi({ SystemPrompt, Prompt }: AiPrompt): 
       502,
     );
   }
-
+  console.log(choice?.message?.content)
   // Empty string is safe: both callers' parsers tolerate an empty/blank response.
   return choice?.message?.content ?? "";
 }

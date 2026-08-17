@@ -33,32 +33,6 @@ export interface PatientSummary {
   recoveryTrajectory: RecoveryPoint[];
 }
 
-// Table delimiters must never come from patient-authored text. This produces an
-// AI-only copy of the profile; it does not mutate or persist the original data.
-export function sanitizePatientSummaryInput(value: unknown): unknown {
-  if (typeof value === "string") {
-    return value
-      .replace(/\|/g, "/")
-      .replace(/[\r\n\t]+/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-  }
-
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(sanitizePatientSummaryInput);
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        sanitizePatientSummaryInput(item),
-      ])
-    );
-  }
-
-  return value;
-}
-
 // ── System Prompt ────────────────────────────────────────────────
 // The model must return ONLY a JSON object matching the schema below.
 // `recoveryTrajectory` is computed deterministically in the service from the
@@ -98,54 +72,19 @@ TREND (longitudinal — judge from percentageRecovery over time, follow-up compl
 
 criticalInfo — flag any of: a CRITICAL condition; two medicines sharing a genericName or a known interaction risk; an expired prescription (tillDate passed while the condition is still active); an active condition with no doctor assigned; a chronic disease (endDate null) compounding an active condition; an INJECTION dosageForm needing monitoring. Use an empty array if none.
 
-summaryMarkdown — a scannable standard Markdown report using headings and bullet lists. Do NOT use pipe tables or HTML tables. Do NOT restate the overall status line (it is shown separately). Include these sections:
+summaryMarkdown — a scannable Markdown report. Do NOT restate the overall status line (it is shown separately). Include these sections:
 ## Patient Overview — name, age (compute from dateOfBirth), gender, blood group, ID, contact, active vs resolved condition counts.
-## Active Conditions — use the exact heading-and-bullet contract below.
+## Active Conditions — a table: Condition | Type | Status | Since | Hospital | Doctor | Medicines.
 ## Medications — per active condition: Brand (generic) — form, strength; quantity and till date; schedule; adherence % or "Not tracked"; flag expired prescriptions.
-## Progress Timeline — use the exact per-condition bullet contract below.
+## Progress Timeline — up to the 5 most recent progress entries per active condition as a table: Date | Recovery % | Follow-Up | Notes; indicate direction.
 ## Medical History — resolved/background conditions; flag ongoing chronic conditions not linked to an active condition.
 ## Recommended Actions — mirror the recommendedActions array, grouped by priority.
-
-MARKDOWN RENDERING CONTRACT
-- Use only headings, paragraphs, and bullet lists. Pipe tables are forbidden because the consuming client does not support GFM tables.
-- Put one blank line before and after every heading and bullet-list group.
-- Keep every bullet on one physical line.
-- Replace any CR, LF, tab, or literal | in source data with a space or slash.
-- Trim values and use — for missing data.
-
-Active Conditions must use one level-three heading and exactly these six bullets per condition. Medicines is an integer count:
-
-### Hypertension
-
-- **Type:** CHRONIC
-- **Status:** STABLE
-- **Since:** 2026-01-15
-- **Hospital:** Example Hospital
-- **Doctor:** Dr Example
-- **Medicines:** 2
-
-If there are no active conditions, write _No active conditions._
-
-Progress Timeline must use a separate level-three condition heading followed by newest-first bullets:
-
-### Hypertension
-
-- **2026-07-20** — Recovery: 60% ↑; Follow-Up: SUCCESSFUL; Notes: Symptoms improving
-
-- Sort progress rows newest first and include at most five rows per condition.
-- Put the trend arrow beside the recovery value.
-- Truncate Notes to 120 characters after replacing line breaks and pipes.
-- If a condition has no progress, write _No progress recorded._
 
 RULES
 - Use only provided data; never fabricate vitals, lab values, or details that are not present.
 - Separate observation from inference (say "Based on N data points...").
 - Be concise but clinically thorough.
-- Never wrap the JSON response or summaryMarkdown in a code fence.
-- The entire response must be valid JSON parseable by JSON.parse.
-- summaryMarkdown is a JSON string: encode each Markdown line break exactly once as \\n. Never put a literal line break inside the JSON string and never double-encode it as \\\\n.
-- After JSON.parse, summaryMarkdown must contain real line breaks rather than visible backslash-n text.
-- Correct JSON-string pattern: "summaryMarkdown": "## Active Conditions\\n\\n### Migraine\\n\\n- **Type:** CHRONIC\\n- **Status:** STABLE\\n- **Since:** 2026-07-26\\n- **Hospital:** Example Hospital\\n- **Doctor:** Dr Example\\n- **Medicines:** 1"`;
+- The entire response must be valid JSON parseable by JSON.parse; escape newlines inside summaryMarkdown as \\n.`;
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -174,145 +113,6 @@ export function buildRecoveryTrajectory(profile: any): RecoveryPoint[] {
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   return points;
-}
-
-function parseMarkdownTableRow(line: string): string[] | null {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
-  return trimmed
-    .slice(1, -1)
-    .split("|")
-    .map((cell) => cell.trim());
-}
-
-function isMarkdownTableDelimiter(cells: string[] | null): boolean {
-  return Boolean(
-    cells?.length && cells.every((cell) => /^:?-{3,}:?$/.test(cell))
-  );
-}
-
-// Older model responses may still contain the two legacy pipe tables. Convert
-// them to basic Markdown lists so clients without GFM table support render them.
-function convertPatientSummaryTables(markdown: string): string {
-  const lines = markdown.split("\n");
-  const output: string[] = [];
-
-  for (let index = 0; index < lines.length; ) {
-    const header = parseMarkdownTableRow(lines[index] ?? "");
-    const headerKey = header
-      ?.map((cell) => cell.toLowerCase().replace(/[^a-z]/g, ""))
-      .join(",");
-    const isActiveConditions =
-      headerKey ===
-      "condition,type,status,since,hospital,doctor,medicines";
-    const isProgress =
-      headerKey === "date,recovery,followup,notes";
-
-    if (!isActiveConditions && !isProgress) {
-      output.push(lines[index] ?? "");
-      index++;
-      continue;
-    }
-
-    let cursor = index + 1;
-    if (
-      isMarkdownTableDelimiter(
-        parseMarkdownTableRow(lines[cursor] ?? "")
-      )
-    ) {
-      cursor++;
-    }
-
-    const rows: string[][] = [];
-    while (cursor < lines.length) {
-      const row = parseMarkdownTableRow(lines[cursor] ?? "");
-      if (!row || isMarkdownTableDelimiter(row)) break;
-      rows.push(row);
-      cursor++;
-    }
-
-    if (isActiveConditions) {
-      for (const row of rows) {
-        const [
-          condition = "Unnamed condition",
-          type = "—",
-          status = "—",
-          since = "—",
-          hospital = "—",
-          doctor = "—",
-        ] = row;
-        const medicines = row.slice(6).join(" / ") || "—";
-
-        output.push(
-          `### ${condition}`,
-          "",
-          `- **Type:** ${type}`,
-          `- **Status:** ${status}`,
-          `- **Since:** ${since}`,
-          `- **Hospital:** ${hospital}`,
-          `- **Doctor:** ${doctor}`,
-          `- **Medicines:** ${medicines}`,
-          ""
-        );
-      }
-    } else {
-      for (const row of rows) {
-        const [date = "—", recovery = "—", followUp = "—"] = row;
-        const notes = row.slice(3).join(" / ") || "—";
-        output.push(
-          `- **${date}** — Recovery: ${recovery}; Follow-Up: ${followUp}; Notes: ${notes}`
-        );
-      }
-      output.push("");
-    }
-
-    index = cursor;
-  }
-
-  return output.join("\n");
-}
-
-// Normalizes common model-formatting mistakes: double-escaped line breaks,
-// legacy pipe tables, and missing blank lines around any unknown tables.
-export function normalizeSummaryMarkdown(rawMarkdown: string): string {
-  let markdown = rawMarkdown.trim().replace(/\r\n?/g, "\n");
-
-  // Some models return visible "\n" sequences inside an otherwise valid JSON
-  // string. Decode them only when there are no real line breaks in the value.
-  if (!markdown.includes("\n") && /\\(?:r\\n|n|r)/.test(markdown)) {
-    markdown = markdown.replace(/\\r\\n|\\n|\\r/g, "\n");
-  }
-
-  markdown = convertPatientSummaryTables(markdown);
-
-  const output: string[] = [];
-  let previousWasTableRow = false;
-
-  for (const sourceLine of markdown.split("\n")) {
-    const line = sourceLine.trimEnd();
-    const isTableRow = /^\s*\|.*\|\s*$/.test(line);
-    const previousLine = output[output.length - 1] ?? "";
-
-    if (
-      isTableRow &&
-      !previousWasTableRow &&
-      output.length > 0 &&
-      previousLine.trim() !== ""
-    ) {
-      output.push("");
-    } else if (
-      !isTableRow &&
-      previousWasTableRow &&
-      line.trim() !== ""
-    ) {
-      output.push("");
-    }
-
-    output.push(isTableRow ? line.trim() : line);
-    previousWasTableRow = isTableRow;
-  }
-
-  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // Tolerant parser: strips code fences / surrounding prose, validates fields, and
@@ -364,7 +164,7 @@ export function parsePatientSummary(
         : [],
       summaryMarkdown:
         typeof obj?.summaryMarkdown === "string" && obj.summaryMarkdown.trim()
-          ? normalizeSummaryMarkdown(obj.summaryMarkdown)
+          ? obj.summaryMarkdown
           : fallback.summaryMarkdown,
     };
   } catch {
