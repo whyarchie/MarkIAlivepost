@@ -12,12 +12,7 @@ import type {
 import { COMMON_ERROR, error, PATIENT_ERRORS } from "../../constants/messages";
 import { AppError } from "../../utils/AppError";
 import jwtTokenSigner from "../../utils/jwttokensigner";
-import {
-  UserSummarySystemPrompt,
-  parsePatientSummary,
-  buildRecoveryTrajectory,
-  sanitizePatientSummaryInput,
-} from "../../prompt/patientSummary";
+import { UserSummarySystemPrompt, parsePatientSummary, buildRecoveryTrajectory } from "../../prompt/patientSummary";
 import OpenRouterAi from "../../utils/openrouter_ai";
 
 export async function CreatePatient(data: PatientInput) {
@@ -38,7 +33,41 @@ export async function CreatePatient(data: PatientInput) {
 }
 
 export async function SearchPatientByMobile(mobileNumber: string, hospitalId: number) {
-  return GetFullPatientProfile({ mobileNumber, hospitalId });
+  // Normalize: strip +91 or 91 prefix
+  const digits = mobileNumber.trim().replace(/\D/g, "");
+  const normalized = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
+
+  const patient = await prisma.patient.findUnique({
+    where: { mobileNumber: normalized },
+    include: {
+      medicalHistory: {
+        include: { disease: true },
+        orderBy: { startDate: "desc" },
+      },
+      conditions: {
+        where: { hospitalId },
+        include: {
+          disease: true,
+          hospital: true,
+          doctor: true,
+          medicineAlloted: {
+            include: {
+              medicine: true,
+              timings: true,
+              MedicineStatus: true,
+            },
+          },
+          patientProgress: true,
+        },
+        orderBy: { startDate: "desc" },
+      },
+    },
+  });
+  if (!patient) {
+    throw new AppError("Patient not found with this mobile number", 404);
+  }
+
+  return patient;
 }
 
 //Login patient using mobile number and dateofBirth
@@ -193,7 +222,6 @@ export async function PatientConditionCreate(data: PatientConditionInput) {
         data: {
           patientId: data.patientId,
           hospitalId: data.hospitalId,
-          HospitalPatientId: data.hostpitalPatientId,
           doctorId: data.doctorId,
           diseaseId: data.diseaseId,
           startDate: data.startDate,
@@ -672,11 +700,10 @@ export async function GetHighRiskPatientsForHospital(hospitalId: number, page: n
 
 
 /**
- * Patient profile with its related clinical data.
+ * Full patient profile with all relations.
  * Excludes: Hospital.password, PatientDevice.fcmToken
  *
- * Lookup by patientId OR mobileNumber. When hospitalId is provided, the
- * patient must be enrolled with that hospital and only its conditions return.
+ * Lookup by patientId OR mobileNumber. Provide at least one.
  */
 export async function GetFullPatientProfile({
   patientId,
@@ -698,20 +725,12 @@ export async function GetFullPatientProfile({
     normalizedMobile = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
   }
 
-  const patientIdentifier = patientId
+  const where = patientId
     ? { id: patientId }
     : { mobileNumber: normalizedMobile! };
 
-  const patient = await prisma.patient.findFirst({
-    where: {
-      ...patientIdentifier,
-      // Filtering the included conditions is not sufficient authorization: it
-      // would still return the rest of an unrelated patient's profile. Require
-      // an actual relationship whenever a hospital is performing the lookup.
-      ...(hospitalId !== undefined
-        ? { conditions: { some: { hospitalId } } }
-        : {}),
-    },
+  const patient = await prisma.patient.findUnique({
+    where,
     include: {
       medicalHistory: {
         include: {
@@ -720,7 +739,7 @@ export async function GetFullPatientProfile({
         orderBy: { startDate: "desc" },
       },
       conditions: {
-        ...(hospitalId !== undefined ? { where: { hospitalId } } : {}),
+        ...(hospitalId ? { where: { hospitalId } } : {}),
         include: {
           disease: true,
           hospital: {
@@ -767,16 +786,14 @@ export async function GetFullPatientProfile({
   return patient;
 }
 
-export async function GetPatientSummary(id: number, hospitalId?: number) {
-  const patientProfile = await GetFullPatientProfile({ patientId: id, hospitalId })
-  const promptProfile = sanitizePatientSummaryInput(patientProfile)
+export async function GetPatientSummary(id:number){
+  const patientProfile = await GetFullPatientProfile({patientId: id})
   const raw = await OpenRouterAi({
     SystemPrompt: UserSummarySystemPrompt,
-    Prompt: `Patient Profile: ${JSON.stringify(promptProfile)}`
+    Prompt: `Patient Profile: ${JSON.stringify(patientProfile)}`
   })
   // The model returns structured JSON; the recovery trajectory is computed from
   // the DB so the chart is always accurate regardless of model fidelity.
-	console.log(raw);
   return {
     ...parsePatientSummary(raw),
     recoveryTrajectory: buildRecoveryTrajectory(patientProfile),
