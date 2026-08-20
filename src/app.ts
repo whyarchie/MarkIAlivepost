@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express"
 import path from "path"
 import mainRouter from "./mainRouter"
@@ -5,7 +6,6 @@ import cookieParser from "cookie-parser";
 import { globalErrorHandler } from "./middleware/globalErrorHandler"
 import { setupSwagger } from "./swagger";
 import cors from "cors";
-import "dotenv/config";
 // Registers the scheduled jobs (daily follow-up reminders + 7 AM AI overview
 // generation). Importing for side effects starts the schedulers on boot.
 import "./utils/cron";
