@@ -3,6 +3,7 @@ import prisma from "../config/prisma";
 import { AppError } from "./AppError";
 import { PushNotification } from "./fcm";
 import { GenerateAllHospitalAiOverviews } from "../features/other/dashboard/dashboard.service";
+import { cleanupExpiredChatAttachments } from "../features/chat/chat.service";
 
 // Optional timezone for all scheduled jobs (e.g. "Asia/Kolkata"). Defaults to the
 // server's local time when unset. node-cron interprets the cron expression in it.
@@ -85,5 +86,14 @@ cron.schedule(AI_OVERVIEW_CRON, async () => {
         );
     } catch (error) {
         console.error("[ai-overview] Daily generation cron failed:", error);
+    }
+}, cronOptions)
+
+cron.schedule("15 * * * *", async () => {
+    try {
+        const removed = await cleanupExpiredChatAttachments();
+        if (removed) console.log(`[chat-cleanup] Removed ${removed} expired upload(s)`);
+    } catch (error) {
+        console.error("[chat-cleanup] Cleanup failed:", error);
     }
 }, cronOptions)

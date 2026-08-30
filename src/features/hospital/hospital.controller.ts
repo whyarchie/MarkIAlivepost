@@ -114,7 +114,7 @@ hospitalRouter.post('/login', async (req, res, next) => {
       httpOnly: true,       // JS can't read it — more secure
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000
-    }).json({ success: true, data: hospital.safeData })
+    }).json({ success: true, data: hospital.safeData, accessToken: hospital.token })
   } catch (error) {
     next(error)
   }

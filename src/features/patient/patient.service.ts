@@ -2,6 +2,7 @@ import prisma from "../../config/prisma";
 import type {
   AssignMedicineInput,
   CreateprogressInput,
+  ExtendPatientConditionInput,
   MedicalHistoryCreate,
   PatientConditionInput,
   PatientInput,
@@ -19,6 +20,7 @@ import {
   sanitizePatientSummaryInput,
 } from "../../prompt/patientSummary";
 import OpenRouterAi from "../../utils/openrouter_ai";
+import { deleteStoredChatObjectsForConditions } from "../chat/chat.service";
 
 export async function CreatePatient(data: PatientInput) {
   const patient = await prisma.patient.upsert({
@@ -65,6 +67,11 @@ export async function LoginPatient(data: PatientLoginInput) {
 // Cascade, but PatientDevice has no cascade rule, so we clear its rows first —
 // all inside one transaction so a failure leaves nothing half-deleted.
 export async function HardDeletePatient(patientId: number) {
+  const conditions = await prisma.patientCondition.findMany({
+    where: { patientId },
+    select: { id: true },
+  });
+  await deleteStoredChatObjectsForConditions(conditions.map((item) => item.id));
   return prisma.$transaction(async (tx) => {
     await tx.patientDevice.deleteMany({ where: { patientId } });
     return tx.patient.delete({ where: { id: patientId } });
@@ -143,15 +150,67 @@ export async function MedicalHistoryCreateService(data: MedicalHistoryCreate) {
     throw error;
   }
 }
-// Whole days a patient is enrolled for, counting both the start and the end
-// date (1 Jan → 10 Jan = 10 days). Open-ended enrollments (no end date) are
-// charged for a single day up front.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Condition dates represent billed calendar days, not exact instants. Normalize
+// them to UTC day numbers so a follow-up later on the final billed day remains
+// valid and server-local timezone changes cannot alter the result.
+function utcDayNumber(date: Date) {
+  return Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) /
+      MS_PER_DAY,
+  );
+}
+
+function formatUtcDay(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function effectiveConditionEndDate(condition: {
+  startDate: Date;
+  endDate: Date | null;
+}) {
+  // Existing open-ended conditions were charged for one day, so their paid
+  // window ends on startDate until the hospital explicitly extends them.
+  return condition.endDate ?? condition.startDate;
+}
+
+function assertDateWithinConditionWindow(
+  date: Date,
+  condition: { startDate: Date; endDate: Date | null },
+  fieldLabel: string,
+) {
+  if (!Number.isFinite(date.getTime())) {
+    throw new AppError(`${fieldLabel} must be a valid date`, 422);
+  }
+
+  const valueDay = utcDayNumber(date);
+  const startDay = utcDayNumber(condition.startDate);
+  const effectiveEndDate = effectiveConditionEndDate(condition);
+  const endDay = utcDayNumber(effectiveEndDate);
+
+  if (valueDay < startDay || valueDay > endDay) {
+    throw new AppError(
+      `${fieldLabel} (${formatUtcDay(date)}) must be within the paid condition window ${formatUtcDay(condition.startDate)} to ${formatUtcDay(effectiveEndDate)}. Extend the condition first or choose a date inside this range.`,
+      422,
+    );
+  }
+}
+
+function addUtcDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+// Whole calendar days a patient is enrolled for, counting both the start and
+// the end date (1 Jan → 10 Jan = 10 days). Open-ended enrollments are charged
+// for a single day up front.
 function enrollmentDays(startDate: Date, endDate?: Date | null) {
   if (!endDate) return 1;
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
   return Math.max(
     1,
-    Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY) + 1,
+    utcDayNumber(endDate) - utcDayNumber(startDate) + 1,
   );
 }
 
@@ -199,6 +258,7 @@ export async function PatientConditionCreate(data: PatientConditionInput) {
           startDate: data.startDate,
           endDate: data.endDate,
           status: data.status,
+          chatThread: { create: {} },
         },
       });
 
@@ -257,6 +317,108 @@ export async function PatientConditionCreate(data: PatientConditionInput) {
     throw error;
   }
 }
+
+export async function ExtendPatientCondition(
+  data: ExtendPatientConditionInput,
+  hospitalId: number,
+) {
+  return prisma.$transaction(async (tx) => {
+    const condition = await tx.patientCondition.findUnique({
+      where: { id: data.patientConditionId },
+      select: {
+        id: true,
+        hospitalId: true,
+        startDate: true,
+        endDate: true,
+        hospital: { select: { perDayPatientCost: true } },
+      },
+    });
+
+    if (!condition) {
+      throw new AppError(COMMON_ERROR.INVALID_CONDITION, 404);
+    }
+
+    if (condition.hospitalId !== hospitalId) {
+      throw new AppError("Unauthorized to extend this condition", 403);
+    }
+
+    const paidThrough = effectiveConditionEndDate(condition);
+    const addedDays =
+      utcDayNumber(data.endDate) - utcDayNumber(paidThrough);
+
+    if (addedDays <= 0) {
+      throw new AppError(
+        `New end date must be after the current paid-through date ${formatUtcDay(paidThrough)}`,
+        422,
+      );
+    }
+
+    const totalPaise =
+      addedDays * condition.hospital.perDayPatientCost * 100;
+    const chargePaise = totalPaise / 2;
+
+    // Hospital.balance is a PostgreSQL INTEGER, so a single charge above this
+    // value can never be covered and should fail as validation, not as a
+    // database numeric-overflow error.
+    if (!Number.isSafeInteger(chargePaise) || chargePaise > 2_147_483_647) {
+      throw new AppError(
+        "The requested extension is too large. Choose an earlier end date and extend in smaller periods.",
+        422,
+      );
+    }
+
+    // Compare the previously-read end date while updating. If another request
+    // extended this condition first, this update matches nothing and prevents a
+    // duplicate charge for the same days.
+    const extended = await tx.patientCondition.updateMany({
+      where: {
+        id: condition.id,
+        hospitalId,
+        endDate: condition.endDate,
+      },
+      data: { endDate: data.endDate },
+    });
+
+    if (extended.count === 0) {
+      throw new AppError(
+        "The condition dates changed while it was being extended. Refresh and try again.",
+        409,
+      );
+    }
+
+    const charged = await tx.hospital.updateMany({
+      where: { id: hospitalId, balance: { gte: chargePaise } },
+      data: { balance: { decrement: chargePaise } },
+    });
+
+    if (charged.count === 0) {
+      throw new AppError(
+        `Insufficient wallet balance: extending this condition by ${addedDays} day(s) costs ₹${totalPaise / 100}, of which half (₹${chargePaise / 100}) is deducted up front. Please top up the wallet and try again.`,
+        402,
+      );
+    }
+
+    const wallet = await tx.hospital.findUnique({
+      where: { id: hospitalId },
+      select: { balance: true },
+    });
+
+    return {
+      id: condition.id,
+      startDate: condition.startDate,
+      previousEndDate: condition.endDate,
+      endDate: data.endDate,
+      billing: {
+        addedDays,
+        perDayPatientCost: condition.hospital.perDayPatientCost,
+        totalCost: totalPaise,
+        charged: chargePaise,
+        balance: wallet?.balance ?? 0,
+      },
+    };
+  });
+}
+
 export async function PatientConditionGet({
   user,
   safeId,
@@ -279,22 +441,31 @@ export async function PatientConditionGet({
   return condition;
 }
 export async function AssignMedicine(data: AssignMedicineInput, user: { id: number, role: string }) {
-
-  const condition = await prisma.patientCondition.findUnique({
-    where: {
-      id: data.patientConditionId
-    }
-  })
-
-  if (!condition) {
-    throw new AppError("Patient condition not found", 404)
-  }
-
-  if (condition.hospitalId !== user.id) {
-    throw new AppError("Unauthorized to modify this condition", 403)
-  }
-
   const result = await prisma.$transaction(async (tx) => {
+
+    const condition = await tx.patientCondition.findUnique({
+      where: {
+        id: data.patientConditionId
+      }
+    })
+
+    if (!condition) {
+      throw new AppError("Patient condition not found", 404)
+    }
+
+    if (condition.hospitalId !== user.id) {
+      throw new AppError("Unauthorized to modify this condition", 403)
+    }
+
+    // Validate the complete batch before creating any medicine so one invalid
+    // tillDate cannot leave a partially-created prescription.
+    data.medicines.forEach((med, index) => {
+      assertDateWithinConditionWindow(
+        med.tillDate,
+        condition,
+        `Medicine ${index + 1} tillDate`,
+      );
+    });
 
     const created = []
 
@@ -353,35 +524,55 @@ export async function GetAssignedMedicineForPatient(id: number) {
 }
 
 export async function CreatePatientProgress(data: CreateprogressInput & { hospitalId: number }) {
-  const patientCondition = await prisma.patientCondition.findFirst({
-    where: {
-      id: data.patientConditionId,
-      hospitalId: data.hospitalId
-    }
-  })
-  if (!patientCondition) {
-    throw new AppError(COMMON_ERROR.INVALID_HOSPITAL, 403)
-  }
-  const safeData = []
-  const baseDate = new Date(data.startDate)
-
-  for (let i = 0; i < data.totalOccurrences; i++) {
-    const date = new Date(baseDate)
-    date.setDate(baseDate.getDate() + i * data.frequency)
-
-    safeData.push({
-      patientConditionId: data.patientConditionId,
-      scheduledDate: date,
-      questions: data.questions,
+  return prisma.$transaction(async (tx) => {
+    const patientCondition = await tx.patientCondition.findFirst({
+      where: {
+        id: data.patientConditionId,
+        hospitalId: data.hospitalId
+      }
     })
-  }
+    if (!patientCondition) {
+      throw new AppError(COMMON_ERROR.INVALID_HOSPITAL, 403)
+    }
 
-  const result = await prisma.patientProgress.createMany({
-    data: safeData,
+    const spanDays = (data.totalOccurrences - 1) * data.frequency;
+    if (!Number.isSafeInteger(spanDays)) {
+      throw new AppError("Progress schedule is too large", 422);
+    }
 
-    skipDuplicates: true, // optional but safer in scheduling systems
+    const baseDate = new Date(data.startDate)
+    const lastDate = addUtcDays(baseDate, spanDays)
+
+    if (!Number.isFinite(lastDate.getTime())) {
+      throw new AppError("Progress schedule is too large", 422);
+    }
+
+    assertDateWithinConditionWindow(
+      baseDate,
+      patientCondition,
+      "Progress startDate",
+    );
+    assertDateWithinConditionWindow(
+      lastDate,
+      patientCondition,
+      "Progress final occurrence",
+    );
+
+    const safeData = []
+
+    for (let i = 0; i < data.totalOccurrences; i++) {
+      safeData.push({
+        patientConditionId: data.patientConditionId,
+        scheduledDate: addUtcDays(baseDate, i * data.frequency),
+        questions: data.questions,
+      })
+    }
+
+    return tx.patientProgress.createMany({
+      data: safeData,
+      skipDuplicates: true, // optional but safer in scheduling systems
+    })
   })
-  return result
 }
 
 export async function GetPatientForHostpital(data: { patientConditionId: number, hospitalId: number }) {

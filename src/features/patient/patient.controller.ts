@@ -2,6 +2,7 @@ import express, { type NextFunction } from "express";
 import {
   AssignMedicineSchema,
   CreateprogressSchema,
+  ExtendPatientConditionSchema,
   medicalHistorySchema,
   PatientAnswer,
   PatientConditionSchema,
@@ -37,6 +38,7 @@ import {
   SavePatientFcmToken,
   SearchPatientByMobile,
   GetPatientSummary,
+  ExtendPatientCondition,
 } from "./patient.service";
 import { AuthUser, requireRole } from "../../middleware/Auth";
 import { AppError } from "../../utils/AppError";
@@ -236,6 +238,9 @@ patientRouter.post("/create", AuthUser, async (req, res, next) => {
  *                       type: string
  *                     mobileNumber:
  *                       type: string
+ *                 accessToken:
+ *                   type: string
+ *                   description: JWT for Android/native Authorization Bearer requests
  *       401:
  *         description: Invalid credentials
  */
@@ -245,9 +250,14 @@ patientRouter.post("/login", async (req, res, next) => {
     const safeData = patientLoginSchema.parse(data);
 
     const patient = await LoginPatient(safeData);
-    res.status(200).cookie("token", patient.token).json({
+    res.status(200).cookie("token", patient.token, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    }).json({
       success: true,
       data: patient.patient,
+      accessToken: patient.token,
     });
   } catch (error) {
     next(error);
@@ -507,8 +517,8 @@ patientRouter.post("/medicalhistorycreate", async (req, res, next) => {
  *     summary: Request/Create a patient condition (charges the hospital wallet)
  *     description: >
  *       Enrolling a patient costs perDayPatientCost (rupees) for every enrolled
- *       day, counted inclusively from startDate to endDate (no endDate = 1
- *       day); half of that total is deducted from the hospital's wallet up
+ *       day, counted inclusively from startDate to endDate; half of that total
+ *       is deducted from the hospital's wallet up
  *       front. The response includes a `billing` object with days,
  *       perDayPatientCost (rupees/day), totalCost, charged (the half actually
  *       deducted) and remaining balance (all amounts in paise). Fails with 402
@@ -526,8 +536,10 @@ patientRouter.post("/medicalhistorycreate", async (req, res, next) => {
  *               - patientId
  *               - diseaseId
  *               - hospitalId
+ *               - doctorId
  *               - status
  *               - startDate
+ *               - endDate
  *             properties:
  *               patientId:
  *                 type: integer
@@ -634,6 +646,67 @@ patientRouter.post("/condition", AuthUser, async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/patient/condition/extend:
+ *   patch:
+ *     summary: Extend a condition's paid treatment window (Hospital Only)
+ *     description: >
+ *       Moves the condition end date forward and atomically deducts half of the
+ *       additional per-day cost from the owning hospital's wallet. Existing
+ *       open-ended conditions are treated as paid through their start date.
+ *     tags: [Patients]
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [patientConditionId, endDate]
+ *             properties:
+ *               patientConditionId:
+ *                 type: integer
+ *                 minimum: 1
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Must be after the current paid-through date
+ *     responses:
+ *       200:
+ *         description: Condition extended and wallet charged
+ *       402:
+ *         description: Insufficient hospital wallet balance
+ *       403:
+ *         description: Condition belongs to another hospital
+ *       404:
+ *         description: Patient condition not found
+ *       409:
+ *         description: Condition was extended concurrently; refresh and retry
+ *       422:
+ *         description: New end date does not extend the current paid window
+ */
+patientRouter.patch(
+  "/condition/extend",
+  AuthUser,
+  requireRole("Hospital"),
+  async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const safeData = ExtendPatientConditionSchema.parse(req.body);
+      const result = await ExtendPatientCondition(safeData, user.id);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 /**
  * @swagger
@@ -745,6 +818,7 @@ patientRouter.get("/condition/", AuthUser, async (req, res, next) => {
  *                     tillDate:
  *                       type: string
  *                       format: date-time
+ *                       description: Must fall within the condition's paid date window
  *                     timings:
  *                       type: array
  *                       minItems: 1
@@ -795,6 +869,8 @@ patientRouter.get("/condition/", AuthUser, async (req, res, next) => {
  *         description: Invalid role — only hospitals can assign medicine
  *       404:
  *         description: Patient condition not found
+ *       422:
+ *         description: A medicine till date falls outside the paid condition window
  */
 patientRouter.post("/condition/medicine", AuthUser, async (req, res, next) => {
   try {
@@ -894,6 +970,7 @@ patientRouter.get('/condition/assignedmedicine', AuthUser, async (req, res, next
  *               totalOccurrences:
  *                 type: integer
  *                 minimum: 1
+ *                 maximum: 1000
  *                 description: Total number of scheduled progress entries
  *               questions:
  *                 type: array
@@ -923,7 +1000,7 @@ patientRouter.get('/condition/assignedmedicine', AuthUser, async (req, res, next
  *               startDate:
  *                 type: string
  *                 format: date-time
- *                 description: Start date for the schedule
+ *                 description: Start date for the schedule; all generated occurrences must remain inside the paid condition window
  *             example:
  *               patientConditionId: 1
  *               frequency: 7
@@ -956,6 +1033,8 @@ patientRouter.get('/condition/assignedmedicine', AuthUser, async (req, res, next
  *                       description: Number of progress entries created
  *       403:
  *         description: Invalid role — only hospitals can create progress
+ *       422:
+ *         description: The generated schedule falls outside the paid condition window
  */
 //patient Progress maker 
 patientRouter.post('/condition/createprogress', AuthUser, async (req, res, next) => {
@@ -1663,4 +1742,3 @@ patientRouter.get('/summary', AuthUser, async (req, res, next) => {
   }
 });
 export default patientRouter;
-

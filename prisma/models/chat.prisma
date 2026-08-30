@@ -1,0 +1,60 @@
+enum ChatSenderRole {
+  PATIENT
+  HOSPITAL
+}
+
+enum ChatAttachmentStatus {
+  PENDING
+  ATTACHED
+}
+
+model ChatThread {
+  id                     Int              @id @default(autoincrement())
+  patientConditionId     Int              @unique
+  patientCondition       PatientCondition @relation(fields: [patientConditionId], references: [id], onDelete: Cascade)
+  patientLastReadAt      DateTime?
+  hospitalLastReadAt     DateTime?
+  lastActivityAt         DateTime          @default(now())
+  messages               ChatMessage[]
+  attachments            ChatAttachment[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@index([lastActivityAt, id])
+}
+
+model ChatMessage {
+  id              Int            @id @default(autoincrement())
+  threadId        Int
+  thread          ChatThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderRole      ChatSenderRole
+  senderId        Int
+  clientMessageId String
+  body            String?
+  attachment      ChatAttachment?
+  createdAt       DateTime       @default(now())
+
+  @@unique([threadId, senderRole, senderId, clientMessageId])
+  @@index([threadId, id])
+  @@index([threadId, createdAt])
+}
+
+model ChatAttachment {
+  id             String               @id @default(uuid())
+  threadId       Int
+  thread         ChatThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  messageId      Int?                 @unique
+  message        ChatMessage?         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedByRole ChatSenderRole
+  uploadedById   Int
+  status         ChatAttachmentStatus @default(PENDING)
+  storageKey     String               @unique
+  originalName   String
+  mimeType       String
+  byteSize       Int
+  expiresAt      DateTime
+  createdAt      DateTime             @default(now())
+
+  @@index([threadId, status])
+  @@index([status, expiresAt])
+}

@@ -57,6 +57,7 @@ model PatientCondition {
   HospitalPatientId     String?
   medicineAlloted       MedicineAllotted[]
   patientProgress       PatientProgress[]
+  chatThread            ChatThread?
   DoctorReccommendation String?
   invoiceRecommendation String?
   createdAt             DateTime               @default(now())

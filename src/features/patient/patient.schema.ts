@@ -170,6 +170,15 @@ export const PatientConditionSchema = z
     message: COMMON_ERROR.ENDDATE_BEFORE_START,
     path: ["endDate"],
   });
+
+export const ExtendPatientConditionSchema = z.object({
+  patientConditionId: z
+    .number({ message: COMMON_ERROR.INVALID_NUMBER })
+    .int()
+    .positive(),
+  endDate: z.coerce.date({ message: "Valid end date is required" }),
+});
+
 export const questionsArraySchema = z.array(questionSchema);
 
 
@@ -202,24 +211,28 @@ export const AssignMedicineSchema = z.object({
 });
 
 export const CreateprogressSchema = z.object({
-  patientConditionId: z.number({
-    message: COMMON_ERROR.INVALID_NUMBER,
-  }),
+  patientConditionId: z
+    .number({ message: COMMON_ERROR.INVALID_NUMBER })
+    .int()
+    .positive(),
   frequency: z
     .number({
       message: COMMON_ERROR.INVALID_NUMBER,
     })
-    .min(1, COMMON_ERROR.INVALID_FREQ),
+    .int()
+    .positive(COMMON_ERROR.INVALID_FREQ),
 
   totalOccurrences: z
     .number({
       message: COMMON_ERROR.INVALID_NUMBER,
     })
-    .min(1, COMMON_ERROR.INVALID_NUMBER),
+    .int()
+    .positive(COMMON_ERROR.INVALID_NUMBER)
+    .max(1000, "Cannot schedule more than 1000 progress occurrences at once"),
 
   questions: questionsArraySchema,
-  startDate: z.string({
-    message: COMMON_ERROR.STARTDATE_REQUIRE
+  startDate: z.coerce.date({
+    message: COMMON_ERROR.STARTDATE_REQUIRE,
   }),
 })
 export const PatientAnswer = z.object({
@@ -246,6 +259,7 @@ export type PatientDeleteInput = z.infer<typeof patientDeleteSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type MedicalHistoryCreate = z.infer<typeof medicalHistorySchema>;
 export type PatientConditionInput = z.infer<typeof PatientConditionSchema>;
+export type ExtendPatientConditionInput = z.infer<typeof ExtendPatientConditionSchema>;
 export type AssignMedicineInput = z.infer<typeof AssignMedicineSchema>;
 export type CreateprogressInput = z.infer<typeof CreateprogressSchema>
 export type PatientMedicineStatusInput = z.infer<typeof PatientMedicineStatusSchema>

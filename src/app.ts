@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express"
+import { createServer } from "node:http"
 import path from "path"
 import mainRouter from "./mainRouter"
 import cookieParser from "cookie-parser";
@@ -9,18 +10,25 @@ import cors from "cors";
 // Registers the scheduled jobs (daily follow-up reminders + 7 AM AI overview
 // generation). Importing for side effects starts the schedulers on boot.
 import "./utils/cron";
+import { initializeChatSocket } from "./features/chat/chat.socket";
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
-const allowedOrigins = [
+export const allowedOrigins = [
   "https://alivepost.com",
   "https://api.alivepost.com",
   "http://api.alivepost.com",
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:3002",
+  "http://localhost:3003",
   "https://alivepost-admin.vercel.app"
-]
+].concat(
+  (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+)
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -55,7 +63,9 @@ app.get('/health', (req, res) => {
 })
 app.use(globalErrorHandler)
 
-const server = app.listen(PORT, () => {
+const server = createServer(app)
+initializeChatSocket(server, allowedOrigins)
+server.listen(PORT, () => {
   console.log(`[ READY ] Server is running at http://localhost:${PORT}`);
 });
 

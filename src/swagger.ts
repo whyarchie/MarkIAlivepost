@@ -38,6 +38,12 @@ function createSwaggerSpec(env: SwaggerEnvironment) {
             name: "token",
             description: "Login to get the token cookie",
           },
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+            description: "Android/native clients send the JWT returned by login",
+          },
         },
       },
       security: [

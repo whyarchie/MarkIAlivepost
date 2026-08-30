@@ -4,12 +4,21 @@ import { AppError } from "../utils/AppError";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
+export function verifyAuthToken(token: string): AuthUserType {
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET environment variable is not set");
+  }
+  return jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as AuthUserType;
+}
+
 export function AuthUser(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  const token = req.cookies.token;
+  const authorization = req.get("authorization");
+  const bearerMatch = authorization?.match(/^Bearer\s+(.+)$/i);
+  const token = bearerMatch?.[1] || req.cookies?.token;
 
   if (!token) {
     res.status(401).json({
@@ -18,12 +27,8 @@ export function AuthUser(
     return;
   }
 
-  if (!JWT_SECRET) {
-    throw new Error("JWT_SECRET environment variable is not set");
-  }
-
   try {
-    const verified = jwt.verify(token, JWT_SECRET) as AuthUserType;
+    const verified = verifyAuthToken(token);
 
     (req as any).user = verified;
 

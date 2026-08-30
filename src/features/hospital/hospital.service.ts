@@ -9,6 +9,7 @@ import { getRazorpay } from "../../utils/razorpay";
 import { HardDeletePatient } from "../patient/patient.service";
 import type { HospitalConditionRecommendation, HospitalCreate, HospitalLogin, HospitalUpdate, HospitalVerifyPayment } from "./hospital.schema";
 import bcrypt from "bcrypt"
+import { deleteStoredChatObjectsForConditions } from "../chat/chat.service";
 
 // GST charged on top of every wallet top-up. Kept as a fraction of the base
 // amount so the paise math below can round once, in the smallest currency unit.
@@ -270,6 +271,9 @@ export async function HospitalDeletePatient(hospitalId: number, patientId: numbe
 
   // Enrolled with other hospitals too → only remove this hospital's enrollment.
   if (distinctHospitals > 1) {
+    await deleteStoredChatObjectsForConditions(
+      conditions.filter((condition) => condition.hospitalId === hospitalId).map((condition) => condition.id),
+    );
     const { count } = await prisma.patientCondition.deleteMany({
       where: { patientId, hospitalId },
     });
@@ -520,5 +524,4 @@ export async function HospitalPaymentWebhook(rawBody: Buffer, signature: string)
 
   return { handled: true, ...result };
 }
-
 
