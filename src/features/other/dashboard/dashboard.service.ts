@@ -276,7 +276,8 @@ export type HospitalAiOverviewResult = HospitalOverview & {
 export async function ComputeHospitalAiOverview(
   hospitalId: number
 ): Promise<HospitalAiOverviewResult> {
-  const [hospital, summary, charts, patient, criticalConditions] = await Promise.all([
+  const chatWindowStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [hospital, summary, charts, patient, criticalConditions, recentChatRows] = await Promise.all([
     prisma.hospital.findUnique({
       where: { id: hospitalId },
       select: { name: true },
@@ -295,7 +296,43 @@ export async function ComputeHospitalAiOverview(
       orderBy: { startDate: "asc" },
       take: 200,
     }),
+    // Include recent chat context in the daily AI briefing. Cap the result and
+    // message length so a busy hospital cannot create an unbounded model prompt.
+    prisma.chatMessage.findMany({
+      where: {
+        createdAt: { gte: chatWindowStart },
+        thread: { patientCondition: { hospitalId } },
+      },
+      select: {
+        senderRole: true,
+        body: true,
+        createdAt: true,
+        thread: {
+          select: {
+            patientCondition: {
+              select: {
+                disease: { select: { name: true } },
+                patient: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
   ]);
+
+  const recentChatMessages = recentChatRows
+    .filter((message) => message.body?.trim())
+    .reverse()
+    .map((message) => ({
+      patientName: message.thread.patientCondition.patient.name,
+      disease: message.thread.patientCondition.disease.name,
+      senderRole: message.senderRole,
+      date: message.createdAt.toISOString(),
+      message: message.body!.slice(0, 1000),
+    }));
 
   // Aggregate the critical conditions by disease. Iterating in startDate-asc
   // order means the first time we see a disease is its oldest critical case.
@@ -331,6 +368,13 @@ export async function ComputeHospitalAiOverview(
     followUpStatuses: charts.followUpStatuses,
     recoveryTrend: charts.recoveryTrend.slice(-10),
     criticalByDisease,
+    recentChatWindow: {
+      start: chatWindowStart.toISOString(),
+      end: new Date().toISOString(),
+      messagesIncluded: recentChatMessages.length,
+      truncatedAt: 200,
+    },
+    recentChatMessages,
   };
 
   const raw = await OpenRouterAi({
